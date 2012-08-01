@@ -1,11 +1,6 @@
 var jam = {
     "packages": [
         {
-            "name": "couchr",
-            "location": "jam/couchr",
-            "main": "couchr.js"
-        },
-        {
             "name": "bootstrap",
             "location": "jam/bootstrap"
         },
@@ -24,6 +19,11 @@ var jam = {
             "main": "hbt.js"
         },
         {
+            "name": "couchr",
+            "location": "jam/couchr",
+            "main": "couchr.js"
+        },
+        {
             "name": "async",
             "location": "jam/async",
             "main": "./lib/async"
@@ -32,11 +32,6 @@ var jam = {
             "name": "jquery",
             "location": "jam/jquery",
             "main": "jquery.js"
-        },
-        {
-            "name": "underscore",
-            "location": "jam/underscore",
-            "main": "underscore.js"
         },
         {
             "name": "director",
@@ -49,19 +44,14 @@ var jam = {
             "main": "events.js"
         },
         {
-            "name": "url",
-            "location": "jam/url",
-            "main": "url.js"
+            "name": "lodash",
+            "location": "jam/lodash",
+            "main": "lodash"
         },
         {
             "name": "text",
             "location": "jam/text",
             "main": "text.js"
-        },
-        {
-            "name": "querystring",
-            "location": "jam/querystring",
-            "main": "querystring.js"
         }
     ],
     "version": "0.1.14",

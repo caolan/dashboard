@@ -1,7 +1,7 @@
 define([
     'exports',
     'couchr',
-    'underscore'
+    'lodash'
 ],
 function (exports, couchr, _) {
 

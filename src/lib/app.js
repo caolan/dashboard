@@ -1,7 +1,7 @@
 define([
     'exports',
     'require',
-    'underscore',
+    'lodash',
     'director',
     './views/projects',
     './views/templates',
@@ -40,7 +40,7 @@ function (exports, require, _) {
         projects.saveLocal();
         settings.saveLocal();
 
-        session.refresh();
+        session.info();
         session.on('change', function (data) {
             if (_.include(data.userCtx.roles, '_admin')) {
                 $(document.body).addClass('is-admin');

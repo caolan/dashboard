@@ -1,9 +1,10 @@
 define([
     'require',
     'jquery',
-    'underscore',
+    'lodash',
     '../projects',
     '../settings',
+    '../session',
     'hbt!../../templates/projects',
     'hbt!../../templates/navigation',
     'bootstrap/js/bootstrap-button'
@@ -12,7 +13,8 @@ function (require, $, _) {
 
     var tmpl = require('hbt!../../templates/projects'),
         projects = require('../projects'),
-        settings = require('../settings');
+        settings = require('../settings'),
+        session = require('../session');
 
 
     function getProjectList() {
@@ -33,10 +35,34 @@ function (require, $, _) {
     }
 
 
-    return function () {
+    function renderProjects(ps, userCtx) {
+        // filter out projects the user does not have permission to access
+        ps = _.filter(ps, _.partial(projects.isMember, userCtx));
+
+        // set is_admin on projects user is admin of
+        ps = _.map(ps, function (p) {
+            p.is_admin = projects.isAdmin(userCtx, p);
+            return p;
+        });
+
+        // does user have admin access to any projects in the list?
+        var has_admin = _.any(ps, _.partial(projects.isAdmin, userCtx));
+
+        // render projects page
         $('#content').html(tmpl({
-            projects: getProjectList()
+            has_any_admin: has_admin,
+            projects: ps
         }));
+    }
+
+
+    return function () {
+        session.infoCached(function (err, info) {
+            renderProjects(getProjectList(), info.userCtx);
+            session.on('change', function (info) {
+                renderProjects(getProjectList(), info.userCtx);
+            });
+        });
 
         $('#navigation').html(
             require('hbt!../../templates/navigation')({
@@ -61,10 +87,12 @@ function (require, $, _) {
                 var bar = $('#admin-bar-status .progress .bar');
                 var fn = function () {
                     $('#admin-bar-status .progress').fadeOut(function () {
-                        //$('#admin-bar-status').html('');
-                        $('#content').html(tmpl({
-                            projects: getProjectList()
-                        }));
+                        session.infoCached(function (err, info) {
+                            if (err) {
+                                return console.error(err);
+                            }
+                            renderProjects(getProjectList(), info.userCtx)
+                        });
                     });
                     $(that).button('reset');
                 };

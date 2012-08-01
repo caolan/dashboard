@@ -2,9 +2,8 @@ define([
     'exports',
     'require',
     'jquery',
-    'underscore',
+    'lodash',
     'async',
-    'url',
     'couchr',
     'events',
     './settings',
@@ -17,7 +16,6 @@ function (exports, require, $, _) {
         couchr = require('couchr'),
         events = require('events'),
         async = require('async'),
-        url = require('url'),
         replicate = require('./replicate').replicate,
         utils = require('./utils');
 
@@ -35,7 +33,7 @@ function (exports, require, $, _) {
             $.ajax({
                 type: 'GET',
                 dataType: 'jsonp',
-                url: url.resolve(s,'_design/library/_list/jsonp/templates'),
+                url: s + '/_design/library/_list/jsonp/templates',
                 success: function (data) {
                     completed_sources++;
                     ev.emit('progress', Math.floor(
@@ -76,9 +74,8 @@ function (exports, require, $, _) {
                     });
                     var rdash = r.value.dashboard;
                     if (rdash.icons && rdash.icons['22']) {
-                        doc.dashicon = url.resolve(
-                            r.source, r.id + '/' + rdash.icons['22']
-                        );
+                        doc.dashicon = r.source.replace(/\/$/, '') +
+                            '/' + r.id + '/' + rdash.icons['22'];
                     }
                     couchr.put(durl, doc, function (err) {
                         if (err) {

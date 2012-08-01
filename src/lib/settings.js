@@ -1,7 +1,7 @@
 define([
     'exports',
     'require',
-    'underscore',
+    'lodash',
     '../data/settings',
     'couchr',
     './env'

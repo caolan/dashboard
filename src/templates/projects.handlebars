@@ -9,6 +9,7 @@
         <th>Template</th>
         <th>Admins</th>
         <th>Members</th>
+        {{#if has_any_admin}} <th>Actions</th> {{/if}}
       </tr>
       </thead>
       <tbody>
@@ -37,6 +38,13 @@
             {{security.members.names}}
             {{security.members.roles}}
           </td>
+          {{#if ../has_any_admin}}
+          <td class="actions">
+            {{#if is_admin}}
+              <a class="btn btn-danger">Delete</a>
+            {{/if}}
+          </td>
+          {{/if}}
         </tr>
         {{/each}}
       </tbody>

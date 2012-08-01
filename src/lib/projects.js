@@ -2,7 +2,7 @@ define([
     'exports',
     'require',
     'jquery',
-    'underscore',
+    'lodash',
     'couchr',
     'async',
     '../data/dashboard-data',
@@ -287,6 +287,51 @@ function (exports, require, $, _) {
             callback(null, pdoc);
         });
         return ev;
+    };
+
+    exports.isAdmin = function (userCtx, p) {
+        if (_.include(userCtx.roles, '_admin')) {
+            return true;
+        }
+        var admins = p.security.admins || {roles: [], names: []};
+        if (_.include(admins.names, userCtx.name)) {
+            return true;
+        }
+        _.each(userCtx.roles, function (r) {
+            if (_.include(admins.roles, r)) {
+                return true;
+            }
+        });
+        return false;
+    };
+
+    exports.isUnsecured = function (p) {
+        var s = p.security;
+        if (!s.admins && !s.members) {
+            return true;
+        }
+        return (
+            s.admins.names.length === 0 &&
+            s.admins.roles.length === 0 &&
+            s.members.names.length === 0 &&
+            s.members.roles.length === 0
+        );
+    };
+
+    exports.isMember = function (userCtx, p) {
+        if (exports.isUnsecured(p) || exports.isAdmin(userCtx, p)) {
+            return true;
+        }
+        var members = p.security.members;
+        if (_.include(members.names, userCtx.name)) {
+            return true;
+        }
+        _.each(userCtx.roles, function (r) {
+            if (_.include(members.roles, r)) {
+                return true;
+            }
+        });
+        return false;
     };
 
 });

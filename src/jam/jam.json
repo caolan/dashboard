@@ -1,16 +1,15 @@
 {
     "jam_version": "0.1.11",
     "dependencies": {
-        "bootstrap": null,
+        "bootstrap": "2.0.3",
         "font-awesome": null,
         "handlebars": null,
         "hbt": null,
         "couchr": "linked",
         "async": null,
         "jquery": null,
-        "underscore": null,
         "director": null,
         "events": null,
-        "url": null
+        "lodash": null
     }
 }

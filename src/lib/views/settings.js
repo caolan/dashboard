@@ -1,7 +1,7 @@
 define([
     'require',
     'jquery',
-    'underscore',
+    'lodash',
     '../settings',
     'hbt!../../templates/settings',
     'hbt!../../templates/navigation',
