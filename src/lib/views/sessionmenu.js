@@ -1,23 +1,26 @@
 define([
+    'exports',
     'require',
     'jquery',
-    '../session',
+    '../remote/session',
     'hbt!../../templates/sessionmenu'
 ],
-function (require, $) {
+function (exports, require, $) {
 
-    var session = require('../session');
+    var session = require('../remote/session');
 
 
-    return function (data) {
-        $('#session').html(
-            require('hbt!../../templates/sessionmenu')(data)
-        );
-        $('#session .signout-link').click(function (ev) {
-            ev.preventDefault();
-            session.logout();
-            return false;
-        });
+    exports.render = function (info) {
+        var el = $( require('hbt!../../templates/sessionmenu')(info) );
+        $('.signout-link', el).click( exports.$doLogout );
+        return el;
+    };
+
+
+    exports.$doLogout = function (ev) {
+        ev.preventDefault();
+        session.$logout();
+        return false;
     };
 
 });

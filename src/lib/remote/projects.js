@@ -5,12 +5,12 @@ define([
     'lodash',
     'couchr',
     'async',
-    '../data/dashboard-data',
     'events',
-    './utils',
-    './env',
+    '../../data/dashboard-data',
+    '../local/env',
     './replicate',
-    './settings'
+    './settings',
+    './utils'
 ],
 function (exports, require, $, _) {
 
@@ -18,13 +18,13 @@ function (exports, require, $, _) {
         async = require('async'),
         events = require('events'),
         utils = require('./utils'),
-        DATA = require('../data/dashboard-data'),
-        env = require('./env'),
-        replicate = require('./replicate').replicate,
+        DATA = require('../../data/dashboard-data'),
+        env = require('../local/env'),
+        replicate = require('./replicate'),
         settings = require('./settings');
 
 
-    exports.get = function (id) {
+    exports.$get = function (id) {
         if (id) {
             return _.detect(DATA.projects, function (db) {
                 return db._id === id;
@@ -33,10 +33,10 @@ function (exports, require, $, _) {
         return DATA.projects;
     };
 
-    exports.update = function (newDoc, /*optional*/callback) {
+    exports.$update = function (newDoc, /*optional*/callback) {
         callback = callback || utils.logErrorsCallback;
 
-        var oldDoc = exports.get(newDoc._id);
+        var oldDoc = exports.$get(newDoc._id);
         var doc = oldDoc ? _.extend(oldDoc, newDoc): newDoc;
 
         var url = 'api/' + encodeURIComponent(doc._id);
@@ -68,7 +68,7 @@ function (exports, require, $, _) {
         });
     };
 
-    exports.saveLocal = function () {
+    exports.$saveLocal = function () {
         if (env.hasStorage) {
             localStorage.setItem(
                 'dashboard-projects', JSON.stringify(DATA.projects)
@@ -76,7 +76,7 @@ function (exports, require, $, _) {
         }
     };
 
-    exports.refresh = function (/*optional*/callback) {
+    exports.$refresh = function (/*optional*/callback) {
         callback = callback || utils.logErrorsCallback;
         var ev = new events.EventEmitter();
 
@@ -86,7 +86,7 @@ function (exports, require, $, _) {
             }
             var completed = 0;
             async.forEachLimit(dbs, 4, function (db, cb) {
-                exports.refreshDB(db, function (err) {
+                exports.$refreshDB(db, function (err) {
                     if (err) {
                         return cb(err);
                     }
@@ -102,7 +102,7 @@ function (exports, require, $, _) {
                 if (err) {
                     return callback(err);
                 }
-                exports.saveLocal();
+                exports.$saveLocal();
                 $.get('data/dashboard-data.js', function (data) {
                     // cache bust
                 });
@@ -112,7 +112,7 @@ function (exports, require, $, _) {
         return ev;
     };
 
-    exports.refreshDB = function (db, /*optional*/callback) {
+    exports.$refreshDB = function (db, /*optional*/callback) {
         callback = callback || utils.logErrorsCallback;
 
         var url = '/_api/' + encodeURIComponent(db) + '/_all_docs';
@@ -128,13 +128,13 @@ function (exports, require, $, _) {
             }
             async.forEachSeries(data.rows || [], function (r, cb) {
                 // For now, update all documents on refresh
-                exports.refreshDoc(db, r.id, cb);
+                exports.$refreshDoc(db, r.id, cb);
             },
             callback);
         });
     };
 
-    exports.refreshDoc = function (db_name, ddoc_id, /*optional*/callback) {
+    exports.$refreshDoc = function (db_name, ddoc_id, /*optional*/callback) {
         callback = callback || utils.logErrorsCallback;
 
         var ddoc_url = '/' + db_name + '/' + ddoc_id;
@@ -176,7 +176,7 @@ function (exports, require, $, _) {
                         var dashicon_url = '/_api/' + doc.ddoc_url + '/' +
                             dash.icons['22'];
 
-                        utils.imgToDataURI(dashicon_url, function (err, url) {
+                        utils.$imgToDataURI(dashicon_url, function (err, url) {
                             if (!err && url) {
                                 doc.dashicon = url;
                             }
@@ -201,16 +201,15 @@ function (exports, require, $, _) {
                 }
             ],
             function () {
-                console.log(['update', ddoc_url, doc]);
-                exports.update(doc, callback);
+                exports.$update(doc, callback);
             })
 
         });
     };
 
-    exports.create = function (db_name, ddoc_id, callback) {
+    exports.$create = function (db_name, ddoc_id, callback) {
         var ev = new events.EventEmitter(),
-            cfg = settings.get(),
+            cfg = settings.$get(),
             dashboard_db = cfg.info.db_name;
 
         // stores the final project document created in dashboard db
@@ -229,7 +228,7 @@ function (exports, require, $, _) {
                     target: db_name,
                     doc_ids: [ddoc_id]
                 };
-                replicate(repdoc, cb);
+                replicate.$replicate(repdoc, cb);
             },
 
             // Copy replicated template to _design doc id
@@ -255,7 +254,7 @@ function (exports, require, $, _) {
             // Delete the old template doc replicated initially
             function (cb) {
                 ev.emit('progress', 80);
-                utils.getRev(db_name, ddoc_id, function (err, rev) {
+                utils.$getRev(db_name, ddoc_id, function (err, rev) {
                     if (err) {
                         return cb(err);
                     }
@@ -268,9 +267,9 @@ function (exports, require, $, _) {
             function (cb) {
                 ev.emit('progress', 90);
                 var id = '_design/' + ddoc_id;
-                exports.refreshDoc(db_name, id, function (err, doc) {
+                exports.$refreshDoc(db_name, id, function (err, doc) {
                     pdoc = doc;
-                    exports.saveLocal();
+                    exports.$saveLocal();
                     $.get('data/dashboard-data.js', function (data) {
                         // cache bust
                     });
@@ -283,55 +282,10 @@ function (exports, require, $, _) {
                 return callback(err);
             }
             ev.emit('progress', 100);
-            console.log(['pdoc', pdoc]);
             callback(null, pdoc);
         });
         return ev;
     };
 
-    exports.isAdmin = function (userCtx, p) {
-        if (_.include(userCtx.roles, '_admin')) {
-            return true;
-        }
-        var admins = p.security.admins || {roles: [], names: []};
-        if (_.include(admins.names, userCtx.name)) {
-            return true;
-        }
-        _.each(userCtx.roles, function (r) {
-            if (_.include(admins.roles, r)) {
-                return true;
-            }
-        });
-        return false;
-    };
-
-    exports.isUnsecured = function (p) {
-        var s = p.security;
-        if (!s.admins && !s.members) {
-            return true;
-        }
-        return (
-            s.admins.names.length === 0 &&
-            s.admins.roles.length === 0 &&
-            s.members.names.length === 0 &&
-            s.members.roles.length === 0
-        );
-    };
-
-    exports.isMember = function (userCtx, p) {
-        if (exports.isUnsecured(p) || exports.isAdmin(userCtx, p)) {
-            return true;
-        }
-        var members = p.security.members;
-        if (_.include(members.names, userCtx.name)) {
-            return true;
-        }
-        _.each(userCtx.roles, function (r) {
-            if (_.include(members.roles, r)) {
-                return true;
-            }
-        });
-        return false;
-    };
 
 });

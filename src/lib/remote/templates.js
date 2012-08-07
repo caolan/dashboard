@@ -16,13 +16,13 @@ function (exports, require, $, _) {
         couchr = require('couchr'),
         events = require('events'),
         async = require('async'),
-        replicate = require('./replicate').replicate,
+        replicate = require('./replicate'),
         utils = require('./utils');
 
 
-    exports.update = function (callback) {
+    exports.$update = function (callback) {
         var ev = new events.EventEmitter();
-        var cfg = settings.get();
+        var cfg = settings.$get();
 
         var completed_sources = 0;
         async.concat(cfg.templates.sources, function (s, cb) {
@@ -100,7 +100,7 @@ function (exports, require, $, _) {
      * find the last known _rev for _deleted documents.
      */
 
-    exports.findLastEntry = function (id, callback) {
+    exports.$findLastEntry = function (id, callback) {
         var q = {
             filter: 'dashboard/id',
             id: id
@@ -119,12 +119,12 @@ function (exports, require, $, _) {
         });
     };
 
-    exports.clearCheckpoint = function (replication_id, callback) {
+    exports.$clearCheckpoint = function (replication_id, callback) {
         var id = '_local/' + replication_id,
-            cfg = settings.get(),
+            cfg = settings.$get(),
             db_name = cfg.info.db_name;
 
-        utils.getRev(db_name, id, function (err, rev) {
+        utils.$getRev(db_name, id, function (err, rev) {
             if (err) {
                 return callback(err);
             }
@@ -133,7 +133,7 @@ function (exports, require, $, _) {
             }
             else {
                 // may be a deleted doc
-                exports.findLastEntry(id, function (err, rev) {
+                exports.$findLastEntry(id, function (err, rev) {
                     if (rev) {
                         couchr.delete('api/' + id + '?rev=' + rev, callback);
                     }
@@ -147,13 +147,13 @@ function (exports, require, $, _) {
     };
 
     // replicates a ddoc from remote source and ensure it's installed
-    exports.replicateDDoc = function (source, ddoc_id, callback) {
+    exports.$replicateDDoc = function (source, ddoc_id, callback) {
         var repdoc = {
             source: source,
-            target: settings.get().info.db_name,
+            target: settings.$get().info.db_name,
             doc_ids: [ddoc_id]
         };
-        replicate(repdoc, function (err, repdoc) {
+        replicate.$replicate(repdoc, function (err, repdoc) {
             if (err) {
                 return callback(err);
             }
@@ -162,12 +162,12 @@ function (exports, require, $, _) {
                 if (err && err.status === 404) {
                     // checkpoint stopped the doc from being replicated
                     var rid = repdoc._replication_id;
-                    exports.clearCheckpoint(rid, function (err) {
+                    exports.$clearCheckpoint(rid, function (err) {
                         if (err) {
                             return callback(err);
                         }
                         // retry replication
-                        exports.replicateDDoc(source, ddoc_id, callback);
+                        exports.$replicateDDoc(source, ddoc_id, callback);
                     });
                     return;
                 }
@@ -177,7 +177,7 @@ function (exports, require, $, _) {
     };
 
     // updates meta info on template with installed version
-    exports.installTemplateDoc = function (ddoc, callback) {
+    exports.$installTemplateDoc = function (ddoc, callback) {
         var tid = encodeURIComponent('template:' + ddoc._id);
         couchr.get('api/' + tid, function (err, tdoc) {
             if (err) {
@@ -195,7 +195,7 @@ function (exports, require, $, _) {
     };
 
     // removes installed ddoc meta info on template doc
-    exports.uninstallTemplateDoc = function (ddoc_id, callback) {
+    exports.$uninstallTemplateDoc = function (ddoc_id, callback) {
         var tid = encodeURIComponent('template:' + ddoc_id);
         couchr.get('api/' + tid, function (err, tdoc) {
             if (err) {
@@ -212,13 +212,13 @@ function (exports, require, $, _) {
         });
     };
 
-    exports.purgeDDoc = function (ddoc_id, callback) {
-        var cfg = settings.get(),
+    exports.$purgeDDoc = function (ddoc_id, callback) {
+        var cfg = settings.$get(),
             db_name = cfg.info.db_name;
 
 
         function withRev(rev) {
-            var cfg = settings.get();
+            var cfg = settings.$get();
             var db = cfg.info.db_name;
             var q = {};
             // TODO: if there are conflicts, include them in this list of revs
@@ -230,13 +230,13 @@ function (exports, require, $, _) {
             return callback();
         }
 
-        utils.getRev(db_name, ddoc_id, function (err, rev) {
+        utils.$getRev(db_name, ddoc_id, function (err, rev) {
             if (err) {
                 return callback(err);
             }
             if (!rev) {
                 // may be a deleted document
-                exports.findLastEntry(ddoc_id, function (err, rev) {
+                exports.$findLastEntry(ddoc_id, function (err, rev) {
                     if (err) {
                         return callback(err);
                     }
@@ -249,19 +249,19 @@ function (exports, require, $, _) {
         });
     };
 
-    exports.install = function (src, ddoc_id, callback) {
+    exports.$install = function (src, ddoc_id, callback) {
         var ev = new events.EventEmitter();
-        exports.purgeDDoc(ddoc_id, function (err) {
+        exports.$purgeDDoc(ddoc_id, function (err) {
             if (err) {
                 return callback(err);
             }
             ev.emit('progress', 33);
-            return exports.replicateDDoc(src, ddoc_id, function (err, ddoc) {
+            return exports.$replicateDDoc(src, ddoc_id, function (err, ddoc) {
                 if (err) {
                     return callback(err);
                 }
                 ev.emit('progress', 66);
-                return exports.installTemplateDoc(ddoc, function (err, tdoc) {
+                return exports.$installTemplateDoc(ddoc, function (err, tdoc) {
                     if (err) {
                         return callback(err);
                     }
@@ -273,12 +273,12 @@ function (exports, require, $, _) {
         return ev;
     };
 
-    exports.uninstall = function (ddoc_id, callback) {
-        exports.purgeDDoc(ddoc_id, function (err) {
+    exports.$uninstall = function (ddoc_id, callback) {
+        exports.$purgeDDoc(ddoc_id, function (err) {
             if (err) {
                 return callback(err);
             }
-            exports.uninstallTemplateDoc(ddoc_id, callback);
+            exports.$uninstallTemplateDoc(ddoc_id, callback);
         });
     };
 

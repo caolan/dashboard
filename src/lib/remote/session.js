@@ -21,7 +21,7 @@ function (couchr, events, utils) {
         info_callbacks = [];
     }
 
-    exports.info = function (/*optional*/callback) {
+    exports.$info = function (/*optional*/callback) {
         if (info_in_progress) {
             if (callback) {
                 info_callbacks.push(callback);
@@ -49,15 +49,15 @@ function (couchr, events, utils) {
         });
     };
 
-    exports.infoCached = function (callback) {
+    exports.$infoCached = function (callback) {
         if (exports.sessionInfo) {
             return callback(null, exports.sessionInfo);
         }
-        exports.info(callback);
+        exports.$info(callback);
     };
 
 
-    exports.logout = function (callback) {
+    exports.$logout = function (callback) {
         callback = callback || utils.logErrorsCallback;
 
         var data = {username: '_', password: '_'};
@@ -72,7 +72,7 @@ function (couchr, events, utils) {
     };
 
 
-    exports.login = function (username, password, callback) {
+    exports.$login = function (username, password, callback) {
         var data = {name: username, password: password};
         couchr.post('/_session', data, function (err, resp) {
             if (err) {

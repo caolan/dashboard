@@ -8,7 +8,7 @@ function (exports, require) {
     var couchr = require('couchr');
 
 
-    exports.replicate = function (repdoc, callback) {
+    exports.$replicate = function (repdoc, callback) {
         couchr.post('/_replicator', repdoc, function (err, data) {
             if (err) {
                 return callback(err);

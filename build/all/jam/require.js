@@ -5670,606 +5670,6 @@ define("jam/require.config.js", function(){});
 
 define('lodash', ['lodash/lodash'], function (main) { return main; });
 
-define('director', [], function () {
-
-//
-// Generated on Tue Dec 06 2011 04:47:21 GMT-0500 (EST) by Nodejitsu, Inc (Using Codesurgeon).
-// Version 1.0.7
-//
-
-(function (exports) {
-
-
-/*
- * browser.js: Browser specific functionality for director.
- *
- * (C) 2011, Nodejitsu Inc.
- * MIT LICENSE
- *
- */
-
-if (!Array.prototype.filter) {
-  Array.prototype.filter = function(filter, that) {
-    var other = [], v;
-    for (var i = 0, n = this.length; i < n; i++) {
-      if (i in this && filter.call(that, v = this[i], i, this)) {
-        other.push(v);
-      }
-    }
-    return other;
-  };
-}
-
-if (!Array.isArray){
-  Array.isArray = function(obj) {
-    return Object.prototype.toString.call(obj) === '[object Array]';
-  };
-}
-
-var dloc = document.location;
-
-var listener = {
-  mode: 'modern',
-  hash: dloc.hash,
-
-  check: function () {
-    var h = dloc.hash;
-    if (h != this.hash) {
-      this.hash = h;
-      this.onHashChanged();
-    }
-  },
-
-  fire: function () {
-    if (this.mode === 'modern') {
-      window.onhashchange();
-    }
-    else {
-      this.onHashChanged();
-    }
-  },
-
-  init: function (fn) {
-    var self = this;
-
-    if (!window.Router.listeners) {
-      window.Router.listeners = [];
-    }
-
-    function onchange() {
-      for (var i = 0, l = window.Router.listeners.length; i < l; i++) {
-        window.Router.listeners[i]();
-      }
-    }
-
-    //note IE8 is being counted as 'modern' because it has the hashchange event
-    if ('onhashchange' in window && (document.documentMode === undefined
-      || document.documentMode > 7)) {
-      window.onhashchange = onchange;
-      this.mode = 'modern';
-    }
-    else {
-      //
-      // IE support, based on a concept by Erik Arvidson ...
-      //
-      var frame = document.createElement('iframe');
-      frame.id = 'state-frame';
-      frame.style.display = 'none';
-      document.body.appendChild(frame);
-      this.writeFrame('');
-
-      if ('onpropertychange' in document && 'attachEvent' in document) {
-        document.attachEvent('onpropertychange', function () {
-          if (event.propertyName === 'location') {
-            self.check();
-          }
-        });
-      }
-
-      window.setInterval(function () { self.check(); }, 50);
-
-      this.onHashChanged = onchange;
-      this.mode = 'legacy';
-    }
-
-    window.Router.listeners.push(fn);
-
-    return this.mode;
-  },
-
-  destroy: function (fn) {
-    if (!window.Router || !window.Router.listeners) {
-      return;
-    }
-
-    var listeners = window.Router.listeners;
-
-    for (var i = listeners.length - 1; i >= 0; i--) {
-      if (listeners[i] === fn) {
-        listeners.splice(i, 1);
-      }
-    }
-  },
-
-  setHash: function (s) {
-    // Mozilla always adds an entry to the history
-    if (this.mode === 'legacy') {
-      this.writeFrame(s);
-    }
-
-    dloc.hash = (s[0] === '/') ? s : '/' + s;
-    return this;
-  },
-
-  writeFrame: function (s) {
-    // IE support...
-    var f = document.getElementById('state-frame');
-    var d = f.contentDocument || f.contentWindow.document;
-    d.open();
-    d.write("<script>_hash = '" + s + "'; onload = parent.listener.syncHash;<script>");
-    d.close();
-  },
-
-  syncHash: function () {
-    // IE support...
-    var s = this._hash;
-    if (s != dloc.hash) {
-      dloc.hash = s;
-    }
-    return this;
-  },
-
-  onHashChanged: function () {}
-};
-
-var Router = exports.Router = function (routes) {
-  if (!(this instanceof Router)) return new Router(routes);
-
-  this.params   = {};
-  this.routes   = {};
-  this.methods  = ['on', 'once', 'after', 'before'];
-  this._methods = {};
-
-  this._insert = this.insert;
-  this.insert = this.insertEx;
-
-  this.configure();
-  this.mount(routes || {});
-};
-
-Router.prototype.init = function (r) {
-  var self = this;
-  this.handler = function() {
-    var hash = dloc.hash.replace(/^#/, '');
-    self.dispatch('on', hash);
-  };
-
-  if (dloc.hash === '' && r) {
-    dloc.hash = r;
-  }
-
-  if (dloc.hash.length > 0) {
-    this.handler();
-  }
-
-  listener.init(this.handler);
-  return this;
-};
-
-Router.prototype.explode = function () {
-  var v = dloc.hash;
-  if (v[1] === '/') { v=v.slice(1) }
-  return v.slice(1, v.length).split("/");
-};
-
-Router.prototype.setRoute = function (i, v, val) {
-  var url = this.explode();
-
-  if (typeof i === 'number' && typeof v === 'string') {
-    url[i] = v;
-  }
-  else if (typeof val === 'string') {
-    url.splice(i, v, s);
-  }
-  else {
-    url = [i];
-  }
-
-  listener.setHash(url.join('/'));
-  return url;
-};
-
-//
-// ### function insertEx(method, path, route, parent)
-// #### @method {string} Method to insert the specific `route`.
-// #### @path {Array} Parsed path to insert the `route` at.
-// #### @route {Array|function} Route handlers to insert.
-// #### @parent {Object} **Optional** Parent "routes" to insert into.
-// insert a callback that will only occur once per the matched route.
-//
-Router.prototype.insertEx = function(method, path, route, parent) {
-  if (method === "once") {
-    method = "on";
-    route = function(route) {
-      var once = false;
-      return function() {
-        if (once) return;
-        once = true;
-        return route.apply(this, arguments);
-      };
-    }(route);
-  }
-  return this._insert(method, path, route, parent);
-};
-
-
-Router.prototype.getState = function () {
-  return this.state;
-};
-
-Router.prototype.getRoute = function (v) {
-  var ret = v;
-
-  if (typeof v === "number") {
-    ret = this.explode()[v];
-  }
-  else if (typeof v === "string"){
-    var h = this.explode();
-    ret = h.indexOf(v);
-  }
-  else {
-    ret = this.explode();
-  }
-
-  return ret;
-};
-
-Router.prototype.destroy = function () {
-  listener.destroy(this.handler);
-  return this;
-};function _every(arr, iterator) {
-    for (var i = 0; i < arr.length; i += 1) {
-        if (iterator(arr[i], i, arr) === false) {
-            return;
-        }
-    }
-}
-
-function _flatten(arr) {
-    var flat = [];
-    for (var i = 0, n = arr.length; i < n; i++) {
-        flat = flat.concat(arr[i]);
-    }
-    return flat;
-}
-
-function _asyncEverySeries(arr, iterator, callback) {
-    if (!arr.length) {
-        return callback();
-    }
-    var completed = 0;
-    (function iterate() {
-        iterator(arr[completed], function(err) {
-            if (err || err === false) {
-                callback(err);
-                callback = function() {};
-            } else {
-                completed += 1;
-                if (completed === arr.length) {
-                    callback();
-                } else {
-                    iterate();
-                }
-            }
-        });
-    })();
-}
-
-function paramifyString(str, params, mod) {
-    mod = str;
-    for (var param in params) {
-        if (params.hasOwnProperty(param)) {
-            mod = params[param](str);
-            if (mod !== str) {
-                break;
-            }
-        }
-    }
-    return mod === str ? "([a-zA-Z0-9-]+)" : mod;
-}
-
-function regifyString(str, params) {
-    if (~str.indexOf("*")) {
-        str = str.replace(/\*/g, "([_.()!\\ %@&a-zA-Z0-9-]+)");
-    }
-    var captures = str.match(/:([^\/]+)/ig), length;
-    if (captures) {
-        length = captures.length;
-        for (var i = 0; i < length; i++) {
-            str = str.replace(captures[i], paramifyString(captures[i], params));
-        }
-    }
-    return str;
-}
-
-Router.prototype.configure = function(options) {
-    options = options || {};
-    for (var i = 0; i < this.methods.length; i++) {
-        this._methods[this.methods[i]] = true;
-    }
-    this.recurse = options.recurse || this.recurse || false;
-    this.async = options.async || false;
-    this.delimiter = options.delimiter || "/";
-    this.strict = typeof options.strict === "undefined" ? true : options.strict;
-    this.notfound = options.notfound;
-    this.resource = options.resource;
-    this.every = {
-        after: options.after || null,
-        before: options.before || null,
-        on: options.on || null
-    };
-    return this;
-};
-
-Router.prototype.param = function(token, matcher) {
-    if (token[0] !== ":") {
-        token = ":" + token;
-    }
-    var compiled = new RegExp(token, "g");
-    this.params[token] = function(str) {
-        return str.replace(compiled, matcher.source || matcher);
-    };
-};
-
-Router.prototype.on = Router.prototype.route = function(method, path, route) {
-    var self = this;
-    if (!route && typeof path == "function") {
-        route = path;
-        path = method;
-        method = "on";
-    }
-    if (path.source) {
-        path = path.source.replace(/\\\//ig, "/");
-    }
-    if (Array.isArray(method)) {
-        return method.forEach(function(m) {
-            self.on(m.toLowerCase(), path, route);
-        });
-    }
-    this.insert(method, this.scope.concat(path.split(new RegExp(this.delimiter))), route);
-};
-
-Router.prototype.dispatch = function(method, path, callback) {
-    var self = this, fns = this.traverse(method, path, this.routes, ""), invoked = this._invoked, after;
-    this._invoked = true;
-    if (!fns || fns.length === 0) {
-        this.last = [];
-        if (typeof this.notfound === "function") {
-            this.invoke([ this.notfound ], {
-                method: method,
-                path: path
-            }, callback);
-        }
-        return false;
-    }
-    if (this.recurse === "forward") {
-        fns = fns.reverse();
-    }
-    function updateAndInvoke() {
-        self.last = fns.after;
-        self.invoke(self.runlist(fns), self, callback);
-    }
-    after = this.every && this.every.after ? [ this.every.after ].concat(this.last) : [ this.last ];
-    if (after && after.length > 0 && invoked) {
-        if (this.async) {
-            this.invoke(after, this, updateAndInvoke);
-        } else {
-            this.invoke(after, this);
-            updateAndInvoke();
-        }
-        return true;
-    }
-    updateAndInvoke();
-    return true;
-};
-
-Router.prototype.invoke = function(fns, thisArg, callback) {
-    var self = this;
-    if (this.async) {
-        _asyncEverySeries(fns, function(fn, next) {
-            if (typeof fn == "function") {
-                fn.apply(thisArg, fns.captures.concat(next));
-            }
-        }, function() {
-            if (callback) {
-                callback.apply(thisArg, arguments);
-            }
-        });
-    } else {
-        _every(fns, function apply(fn) {
-            if (Array.isArray(fn)) {
-                return _every(fn, apply);
-            } else if (typeof fn === "function") {
-                return fn.apply(thisArg, fns.captures || null);
-            } else if (typeof fn === "string" && self.resource) {
-                self.resource[fn].apply(thisArg, fns.captures || null);
-            }
-        });
-    }
-};
-
-Router.prototype.traverse = function(method, path, routes, regexp) {
-    var fns = [], current, exact, match, next, that;
-    if (path === this.delimiter && routes[method]) {
-        next = [ [ routes.before, routes[method] ].filter(Boolean) ];
-        next.after = [ routes.after ].filter(Boolean);
-        next.matched = true;
-        next.captures = [];
-        return next;
-    }
-    for (var r in routes) {
-        if (routes.hasOwnProperty(r) && (!this._methods[r] || this._methods[r] && typeof routes[r] === "object" && !Array.isArray(routes[r]))) {
-            current = exact = regexp + this.delimiter + r;
-            if (!this.strict) {
-                exact += "[" + this.delimiter + "]?";
-            }
-            match = path.match(new RegExp("^" + exact));
-            if (!match) {
-                continue;
-            }
-            if (match[0] && match[0] == path && routes[r][method]) {
-                next = [ [ routes[r].before, routes[r][method] ].filter(Boolean) ];
-                next.after = [ routes[r].after ].filter(Boolean);
-                next.matched = true;
-                next.captures = match.slice(1);
-                if (this.recurse && routes === this.routes) {
-                    next.push([ routes["before"], routes["on"] ].filter(Boolean));
-                    next.after = next.after.concat([ routes["after"] ].filter(Boolean));
-                }
-                return next;
-            }
-            next = this.traverse(method, path, routes[r], current);
-            if (next.matched) {
-                if (next.length > 0) {
-                    fns = fns.concat(next);
-                }
-                if (this.recurse) {
-                    fns.push([ routes[r].before, routes[r].on ].filter(Boolean));
-                    next.after = next.after.concat([ routes[r].after ].filter(Boolean));
-                    if (routes === this.routes) {
-                        fns.push([ routes["before"], routes["on"] ].filter(Boolean));
-                        next.after = next.after.concat([ routes["after"] ].filter(Boolean));
-                    }
-                }
-                fns.matched = true;
-                fns.captures = next.captures;
-                fns.after = next.after;
-                return fns;
-            }
-        }
-    }
-    return false;
-};
-
-Router.prototype.insert = function(method, path, route, parent) {
-    var methodType, parentType, isArray, nested, part;
-    path = path.filter(function(p) {
-        return p && p.length > 0;
-    });
-    parent = parent || this.routes;
-    part = path.shift();
-    if (/\:|\*/.test(part) && !/\\d|\\w/.test(part)) {
-        part = regifyString(part, this.params);
-    }
-    if (path.length > 0) {
-        parent[part] = parent[part] || {};
-        return this.insert(method, path, route, parent[part]);
-    }
-    if (!part && !path.length && parent === this.routes) {
-        methodType = typeof parent[method];
-        switch (methodType) {
-          case "function":
-            parent[method] = [ parent[method], route ];
-            return;
-          case "object":
-            parent[method].push(route);
-            return;
-          case "undefined":
-            parent[method] = route;
-            return;
-        }
-        return;
-    }
-    parentType = typeof parent[part];
-    isArray = Array.isArray(parent[part]);
-    if (parent[part] && !isArray && parentType == "object") {
-        methodType = typeof parent[part][method];
-        switch (methodType) {
-          case "function":
-            parent[part][method] = [ parent[part][method], route ];
-            return;
-          case "object":
-            parent[part][method].push(route);
-            return;
-          case "undefined":
-            parent[part][method] = route;
-            return;
-        }
-    } else if (parentType == "undefined") {
-        nested = {};
-        nested[method] = route;
-        parent[part] = nested;
-        return;
-    }
-    throw new Error("Invalid route context: " + parentType);
-};
-
-
-
-Router.prototype.extend = function(methods) {
-    var self = this, len = methods.length, i;
-    for (i = 0; i < len; i++) {
-        (function(method) {
-            self._methods[method] = true;
-            self[method] = function() {
-                var extra = arguments.length === 1 ? [ method, "" ] : [ method ];
-                self.on.apply(self, extra.concat(Array.prototype.slice.call(arguments)));
-            };
-        })(methods[i]);
-    }
-};
-
-Router.prototype.runlist = function(fns) {
-    var runlist = this.every && this.every.before ? [ this.every.before ].concat(_flatten(fns)) : _flatten(fns);
-    if (this.every && this.every.on) {
-        runlist.push(this.every.on);
-    }
-    runlist.captures = fns.captures;
-    runlist.source = fns.source;
-    return runlist;
-};
-
-Router.prototype.mount = function(routes, path) {
-    if (!routes || typeof routes !== "object" || Array.isArray(routes)) {
-        return;
-    }
-    var self = this;
-    path = path || [];
-    function insertOrMount(route, local) {
-        var rename = route, parts = route.split(self.delimiter), routeType = typeof routes[route], isRoute = parts[0] === "" || !self._methods[parts[0]], event = isRoute ? "on" : rename;
-        if (isRoute) {
-            rename = rename.slice(self.delimiter.length);
-            parts.shift();
-        }
-        if (isRoute && routeType === "object" && !Array.isArray(routes[route])) {
-            local = local.concat(parts);
-            self.mount(routes[route], local);
-            return;
-        }
-        if (isRoute) {
-            local = local.concat(rename.split(self.delimiter));
-        }
-        self.insert(event, local, routes[route]);
-    }
-    for (var route in routes) {
-        if (routes.hasOwnProperty(route)) {
-            insertOrMount(route, path.slice(0));
-        }
-    }
-};
-
-
-
-}(window));
-
-return {Router: window.Router};
-
-});
-
-define('director', ['director/director'], function (main) { return main; });
-
-define("director/director", function(){});
-
 /*!
  * jQuery JavaScript Library v1.7.2
  * http://jquery.com/
@@ -15844,6 +15244,606 @@ define('couchr', ['couchr/couchr'], function (main) { return main; });
 
 define("couchr/couchr", function(){});
 
+define('director', [], function () {
+
+//
+// Generated on Tue Dec 06 2011 04:47:21 GMT-0500 (EST) by Nodejitsu, Inc (Using Codesurgeon).
+// Version 1.0.7
+//
+
+(function (exports) {
+
+
+/*
+ * browser.js: Browser specific functionality for director.
+ *
+ * (C) 2011, Nodejitsu Inc.
+ * MIT LICENSE
+ *
+ */
+
+if (!Array.prototype.filter) {
+  Array.prototype.filter = function(filter, that) {
+    var other = [], v;
+    for (var i = 0, n = this.length; i < n; i++) {
+      if (i in this && filter.call(that, v = this[i], i, this)) {
+        other.push(v);
+      }
+    }
+    return other;
+  };
+}
+
+if (!Array.isArray){
+  Array.isArray = function(obj) {
+    return Object.prototype.toString.call(obj) === '[object Array]';
+  };
+}
+
+var dloc = document.location;
+
+var listener = {
+  mode: 'modern',
+  hash: dloc.hash,
+
+  check: function () {
+    var h = dloc.hash;
+    if (h != this.hash) {
+      this.hash = h;
+      this.onHashChanged();
+    }
+  },
+
+  fire: function () {
+    if (this.mode === 'modern') {
+      window.onhashchange();
+    }
+    else {
+      this.onHashChanged();
+    }
+  },
+
+  init: function (fn) {
+    var self = this;
+
+    if (!window.Router.listeners) {
+      window.Router.listeners = [];
+    }
+
+    function onchange() {
+      for (var i = 0, l = window.Router.listeners.length; i < l; i++) {
+        window.Router.listeners[i]();
+      }
+    }
+
+    //note IE8 is being counted as 'modern' because it has the hashchange event
+    if ('onhashchange' in window && (document.documentMode === undefined
+      || document.documentMode > 7)) {
+      window.onhashchange = onchange;
+      this.mode = 'modern';
+    }
+    else {
+      //
+      // IE support, based on a concept by Erik Arvidson ...
+      //
+      var frame = document.createElement('iframe');
+      frame.id = 'state-frame';
+      frame.style.display = 'none';
+      document.body.appendChild(frame);
+      this.writeFrame('');
+
+      if ('onpropertychange' in document && 'attachEvent' in document) {
+        document.attachEvent('onpropertychange', function () {
+          if (event.propertyName === 'location') {
+            self.check();
+          }
+        });
+      }
+
+      window.setInterval(function () { self.check(); }, 50);
+
+      this.onHashChanged = onchange;
+      this.mode = 'legacy';
+    }
+
+    window.Router.listeners.push(fn);
+
+    return this.mode;
+  },
+
+  destroy: function (fn) {
+    if (!window.Router || !window.Router.listeners) {
+      return;
+    }
+
+    var listeners = window.Router.listeners;
+
+    for (var i = listeners.length - 1; i >= 0; i--) {
+      if (listeners[i] === fn) {
+        listeners.splice(i, 1);
+      }
+    }
+  },
+
+  setHash: function (s) {
+    // Mozilla always adds an entry to the history
+    if (this.mode === 'legacy') {
+      this.writeFrame(s);
+    }
+
+    dloc.hash = (s[0] === '/') ? s : '/' + s;
+    return this;
+  },
+
+  writeFrame: function (s) {
+    // IE support...
+    var f = document.getElementById('state-frame');
+    var d = f.contentDocument || f.contentWindow.document;
+    d.open();
+    d.write("<script>_hash = '" + s + "'; onload = parent.listener.syncHash;<script>");
+    d.close();
+  },
+
+  syncHash: function () {
+    // IE support...
+    var s = this._hash;
+    if (s != dloc.hash) {
+      dloc.hash = s;
+    }
+    return this;
+  },
+
+  onHashChanged: function () {}
+};
+
+var Router = exports.Router = function (routes) {
+  if (!(this instanceof Router)) return new Router(routes);
+
+  this.params   = {};
+  this.routes   = {};
+  this.methods  = ['on', 'once', 'after', 'before'];
+  this._methods = {};
+
+  this._insert = this.insert;
+  this.insert = this.insertEx;
+
+  this.configure();
+  this.mount(routes || {});
+};
+
+Router.prototype.init = function (r) {
+  var self = this;
+  this.handler = function() {
+    var hash = dloc.hash.replace(/^#/, '');
+    self.dispatch('on', hash);
+  };
+
+  if (dloc.hash === '' && r) {
+    dloc.hash = r;
+  }
+
+  if (dloc.hash.length > 0) {
+    this.handler();
+  }
+
+  listener.init(this.handler);
+  return this;
+};
+
+Router.prototype.explode = function () {
+  var v = dloc.hash;
+  if (v[1] === '/') { v=v.slice(1) }
+  return v.slice(1, v.length).split("/");
+};
+
+Router.prototype.setRoute = function (i, v, val) {
+  var url = this.explode();
+
+  if (typeof i === 'number' && typeof v === 'string') {
+    url[i] = v;
+  }
+  else if (typeof val === 'string') {
+    url.splice(i, v, s);
+  }
+  else {
+    url = [i];
+  }
+
+  listener.setHash(url.join('/'));
+  return url;
+};
+
+//
+// ### function insertEx(method, path, route, parent)
+// #### @method {string} Method to insert the specific `route`.
+// #### @path {Array} Parsed path to insert the `route` at.
+// #### @route {Array|function} Route handlers to insert.
+// #### @parent {Object} **Optional** Parent "routes" to insert into.
+// insert a callback that will only occur once per the matched route.
+//
+Router.prototype.insertEx = function(method, path, route, parent) {
+  if (method === "once") {
+    method = "on";
+    route = function(route) {
+      var once = false;
+      return function() {
+        if (once) return;
+        once = true;
+        return route.apply(this, arguments);
+      };
+    }(route);
+  }
+  return this._insert(method, path, route, parent);
+};
+
+
+Router.prototype.getState = function () {
+  return this.state;
+};
+
+Router.prototype.getRoute = function (v) {
+  var ret = v;
+
+  if (typeof v === "number") {
+    ret = this.explode()[v];
+  }
+  else if (typeof v === "string"){
+    var h = this.explode();
+    ret = h.indexOf(v);
+  }
+  else {
+    ret = this.explode();
+  }
+
+  return ret;
+};
+
+Router.prototype.destroy = function () {
+  listener.destroy(this.handler);
+  return this;
+};function _every(arr, iterator) {
+    for (var i = 0; i < arr.length; i += 1) {
+        if (iterator(arr[i], i, arr) === false) {
+            return;
+        }
+    }
+}
+
+function _flatten(arr) {
+    var flat = [];
+    for (var i = 0, n = arr.length; i < n; i++) {
+        flat = flat.concat(arr[i]);
+    }
+    return flat;
+}
+
+function _asyncEverySeries(arr, iterator, callback) {
+    if (!arr.length) {
+        return callback();
+    }
+    var completed = 0;
+    (function iterate() {
+        iterator(arr[completed], function(err) {
+            if (err || err === false) {
+                callback(err);
+                callback = function() {};
+            } else {
+                completed += 1;
+                if (completed === arr.length) {
+                    callback();
+                } else {
+                    iterate();
+                }
+            }
+        });
+    })();
+}
+
+function paramifyString(str, params, mod) {
+    mod = str;
+    for (var param in params) {
+        if (params.hasOwnProperty(param)) {
+            mod = params[param](str);
+            if (mod !== str) {
+                break;
+            }
+        }
+    }
+    return mod === str ? "([a-zA-Z0-9-]+)" : mod;
+}
+
+function regifyString(str, params) {
+    if (~str.indexOf("*")) {
+        str = str.replace(/\*/g, "([_.()!\\ %@&a-zA-Z0-9-]+)");
+    }
+    var captures = str.match(/:([^\/]+)/ig), length;
+    if (captures) {
+        length = captures.length;
+        for (var i = 0; i < length; i++) {
+            str = str.replace(captures[i], paramifyString(captures[i], params));
+        }
+    }
+    return str;
+}
+
+Router.prototype.configure = function(options) {
+    options = options || {};
+    for (var i = 0; i < this.methods.length; i++) {
+        this._methods[this.methods[i]] = true;
+    }
+    this.recurse = options.recurse || this.recurse || false;
+    this.async = options.async || false;
+    this.delimiter = options.delimiter || "/";
+    this.strict = typeof options.strict === "undefined" ? true : options.strict;
+    this.notfound = options.notfound;
+    this.resource = options.resource;
+    this.every = {
+        after: options.after || null,
+        before: options.before || null,
+        on: options.on || null
+    };
+    return this;
+};
+
+Router.prototype.param = function(token, matcher) {
+    if (token[0] !== ":") {
+        token = ":" + token;
+    }
+    var compiled = new RegExp(token, "g");
+    this.params[token] = function(str) {
+        return str.replace(compiled, matcher.source || matcher);
+    };
+};
+
+Router.prototype.on = Router.prototype.route = function(method, path, route) {
+    var self = this;
+    if (!route && typeof path == "function") {
+        route = path;
+        path = method;
+        method = "on";
+    }
+    if (path.source) {
+        path = path.source.replace(/\\\//ig, "/");
+    }
+    if (Array.isArray(method)) {
+        return method.forEach(function(m) {
+            self.on(m.toLowerCase(), path, route);
+        });
+    }
+    this.insert(method, this.scope.concat(path.split(new RegExp(this.delimiter))), route);
+};
+
+Router.prototype.dispatch = function(method, path, callback) {
+    var self = this, fns = this.traverse(method, path, this.routes, ""), invoked = this._invoked, after;
+    this._invoked = true;
+    if (!fns || fns.length === 0) {
+        this.last = [];
+        if (typeof this.notfound === "function") {
+            this.invoke([ this.notfound ], {
+                method: method,
+                path: path
+            }, callback);
+        }
+        return false;
+    }
+    if (this.recurse === "forward") {
+        fns = fns.reverse();
+    }
+    function updateAndInvoke() {
+        self.last = fns.after;
+        self.invoke(self.runlist(fns), self, callback);
+    }
+    after = this.every && this.every.after ? [ this.every.after ].concat(this.last) : [ this.last ];
+    if (after && after.length > 0 && invoked) {
+        if (this.async) {
+            this.invoke(after, this, updateAndInvoke);
+        } else {
+            this.invoke(after, this);
+            updateAndInvoke();
+        }
+        return true;
+    }
+    updateAndInvoke();
+    return true;
+};
+
+Router.prototype.invoke = function(fns, thisArg, callback) {
+    var self = this;
+    if (this.async) {
+        _asyncEverySeries(fns, function(fn, next) {
+            if (typeof fn == "function") {
+                fn.apply(thisArg, fns.captures.concat(next));
+            }
+        }, function() {
+            if (callback) {
+                callback.apply(thisArg, arguments);
+            }
+        });
+    } else {
+        _every(fns, function apply(fn) {
+            if (Array.isArray(fn)) {
+                return _every(fn, apply);
+            } else if (typeof fn === "function") {
+                return fn.apply(thisArg, fns.captures || null);
+            } else if (typeof fn === "string" && self.resource) {
+                self.resource[fn].apply(thisArg, fns.captures || null);
+            }
+        });
+    }
+};
+
+Router.prototype.traverse = function(method, path, routes, regexp) {
+    var fns = [], current, exact, match, next, that;
+    if (path === this.delimiter && routes[method]) {
+        next = [ [ routes.before, routes[method] ].filter(Boolean) ];
+        next.after = [ routes.after ].filter(Boolean);
+        next.matched = true;
+        next.captures = [];
+        return next;
+    }
+    for (var r in routes) {
+        if (routes.hasOwnProperty(r) && (!this._methods[r] || this._methods[r] && typeof routes[r] === "object" && !Array.isArray(routes[r]))) {
+            current = exact = regexp + this.delimiter + r;
+            if (!this.strict) {
+                exact += "[" + this.delimiter + "]?";
+            }
+            match = path.match(new RegExp("^" + exact));
+            if (!match) {
+                continue;
+            }
+            if (match[0] && match[0] == path && routes[r][method]) {
+                next = [ [ routes[r].before, routes[r][method] ].filter(Boolean) ];
+                next.after = [ routes[r].after ].filter(Boolean);
+                next.matched = true;
+                next.captures = match.slice(1);
+                if (this.recurse && routes === this.routes) {
+                    next.push([ routes["before"], routes["on"] ].filter(Boolean));
+                    next.after = next.after.concat([ routes["after"] ].filter(Boolean));
+                }
+                return next;
+            }
+            next = this.traverse(method, path, routes[r], current);
+            if (next.matched) {
+                if (next.length > 0) {
+                    fns = fns.concat(next);
+                }
+                if (this.recurse) {
+                    fns.push([ routes[r].before, routes[r].on ].filter(Boolean));
+                    next.after = next.after.concat([ routes[r].after ].filter(Boolean));
+                    if (routes === this.routes) {
+                        fns.push([ routes["before"], routes["on"] ].filter(Boolean));
+                        next.after = next.after.concat([ routes["after"] ].filter(Boolean));
+                    }
+                }
+                fns.matched = true;
+                fns.captures = next.captures;
+                fns.after = next.after;
+                return fns;
+            }
+        }
+    }
+    return false;
+};
+
+Router.prototype.insert = function(method, path, route, parent) {
+    var methodType, parentType, isArray, nested, part;
+    path = path.filter(function(p) {
+        return p && p.length > 0;
+    });
+    parent = parent || this.routes;
+    part = path.shift();
+    if (/\:|\*/.test(part) && !/\\d|\\w/.test(part)) {
+        part = regifyString(part, this.params);
+    }
+    if (path.length > 0) {
+        parent[part] = parent[part] || {};
+        return this.insert(method, path, route, parent[part]);
+    }
+    if (!part && !path.length && parent === this.routes) {
+        methodType = typeof parent[method];
+        switch (methodType) {
+          case "function":
+            parent[method] = [ parent[method], route ];
+            return;
+          case "object":
+            parent[method].push(route);
+            return;
+          case "undefined":
+            parent[method] = route;
+            return;
+        }
+        return;
+    }
+    parentType = typeof parent[part];
+    isArray = Array.isArray(parent[part]);
+    if (parent[part] && !isArray && parentType == "object") {
+        methodType = typeof parent[part][method];
+        switch (methodType) {
+          case "function":
+            parent[part][method] = [ parent[part][method], route ];
+            return;
+          case "object":
+            parent[part][method].push(route);
+            return;
+          case "undefined":
+            parent[part][method] = route;
+            return;
+        }
+    } else if (parentType == "undefined") {
+        nested = {};
+        nested[method] = route;
+        parent[part] = nested;
+        return;
+    }
+    throw new Error("Invalid route context: " + parentType);
+};
+
+
+
+Router.prototype.extend = function(methods) {
+    var self = this, len = methods.length, i;
+    for (i = 0; i < len; i++) {
+        (function(method) {
+            self._methods[method] = true;
+            self[method] = function() {
+                var extra = arguments.length === 1 ? [ method, "" ] : [ method ];
+                self.on.apply(self, extra.concat(Array.prototype.slice.call(arguments)));
+            };
+        })(methods[i]);
+    }
+};
+
+Router.prototype.runlist = function(fns) {
+    var runlist = this.every && this.every.before ? [ this.every.before ].concat(_flatten(fns)) : _flatten(fns);
+    if (this.every && this.every.on) {
+        runlist.push(this.every.on);
+    }
+    runlist.captures = fns.captures;
+    runlist.source = fns.source;
+    return runlist;
+};
+
+Router.prototype.mount = function(routes, path) {
+    if (!routes || typeof routes !== "object" || Array.isArray(routes)) {
+        return;
+    }
+    var self = this;
+    path = path || [];
+    function insertOrMount(route, local) {
+        var rename = route, parts = route.split(self.delimiter), routeType = typeof routes[route], isRoute = parts[0] === "" || !self._methods[parts[0]], event = isRoute ? "on" : rename;
+        if (isRoute) {
+            rename = rename.slice(self.delimiter.length);
+            parts.shift();
+        }
+        if (isRoute && routeType === "object" && !Array.isArray(routes[route])) {
+            local = local.concat(parts);
+            self.mount(routes[route], local);
+            return;
+        }
+        if (isRoute) {
+            local = local.concat(rename.split(self.delimiter));
+        }
+        self.insert(event, local, routes[route]);
+    }
+    for (var route in routes) {
+        if (routes.hasOwnProperty(route)) {
+            insertOrMount(route, path.slice(0));
+        }
+    }
+};
+
+
+
+}(window));
+
+return {Router: window.Router};
+
+});
+
+define('director', ['director/director'], function (main) { return main; });
+
+define("director/director", function(){});
+
 /*global setTimeout: false, console: false */
 (function () {
 
@@ -16863,88 +16863,10 @@ EventEmitter.prototype.listeners = function(type) {
 });
 define('events', ['events/events'], function (main) { return main; });
 
-define('lib/utils',[
-    'exports',
-    'require',
-    'couchr'
-],
-function (exports, require) {
-
-    var couchr = require('couchr');
-
-
-    exports.logErrorsCallback = function (err) {
-        if (err) {
-            return console.error(err);
-        }
-    };
-
-    exports.imgToDataURI = function (src, callback) {
-        var img = new Image();
-        img.src = src;
-        img.onload = function () {
-            var canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            var context = canvas.getContext('2d');
-            context.drawImage(img, 0, 0);
-            return callback(null, canvas.toDataURL());
-        };
-        img.onerror = function () {
-            return callback(new Error('Error loading image: ' + src));
-        };
-        img.onabort = function () {
-            return callback(new Error('Loading of image aborted: ' + src));
-        };
-    };
-
-    exports.getProjectURL = function (db_name, ddoc) {
-        var id = ddoc._id;
-        if (!/^_design\//.test(id)) {
-            id = '_design/' + id;
-        }
-        if (ddoc.rewrites && ddoc.rewrites.length) {
-            return '/' + db_name + '/' + id + '/_rewrite/';
-        }
-        if (ddoc._attachments) {
-            if (ddoc._attachments['index.html']) {
-                return '/' + db_name + '/' + id + '/index.html';
-            }
-            else if (ddoc._attachments['index.htm']) {
-                return '/' + db_name + '/' + id + '/index.htm';
-            }
-        }
-        return null;
-    };
-
-    exports.futonDatabaseURL = function (db_name) {
-        return '/_utils/database.html?' + db_name;
-    };
-
-    exports.getRev = function (db_name, id, callback) {
-        // test if revision is available locally
-        couchr.head('/' + db_name + '/' + id, function (err, data, req) {
-            if (err) {
-                if (err.status === 404) {
-                    // if status is 404 then the current head rev may be a
-                    // deleted doc - search changes feed if you need that info
-                    return callback(null, null);
-                }
-                return callback(err);
-            }
-            var etag = req.getResponseHeader('ETag') || '',
-                rev = etag.replace(/^"/, '').replace(/"$/, '');
-
-            return callback(null, rev || null);
-        });
-    };
-
-});
-
-define('lib/env',['exports'], function (exports) {
+define('lib/local/env',['exports'], function (exports) {
 
     // Feature test (from Modernizr)
-    exports.hasStorage = (function() {
+    exports.$hasStorage = (function() {
         try {
             localStorage.setItem('dashboard-test', 'dashboard-test');
             localStorage.removeItem('dashboard-test');
@@ -16956,7 +16878,7 @@ define('lib/env',['exports'], function (exports) {
 
 });
 
-define('lib/replicate',[
+define('lib/remote/replicate',[
     'exports',
     'require',
     'couchr'
@@ -16966,7 +16888,7 @@ function (exports, require) {
     var couchr = require('couchr');
 
 
-    exports.replicate = function (repdoc, callback) {
+    exports.$replicate = function (repdoc, callback) {
         couchr.post('/_replicator', repdoc, function (err, data) {
             if (err) {
                 return callback(err);
@@ -17008,19 +16930,19 @@ function (exports, require) {
 
 });
 
-define('lib/settings',[
+define('lib/remote/settings',[
     'exports',
     'require',
     'lodash',
-    '../data/settings',
     'couchr',
-    './env'
+    '../../data/settings',
+    '../local/env'
 ],
 function (exports, require, _) {
 
     var couchr = require('couchr'),
-        DATA = require('../data/settings'),
-        env = require('./env');
+        DATA = require('../../data/settings'),
+        env = require('../local/env');
 
 
     exports.DEFAULTS = {
@@ -17033,7 +16955,7 @@ function (exports, require, _) {
         }
     };
 
-    exports.update = function (cfg, callback) {
+    exports.$update = function (cfg, callback) {
         // TODO: should this be a deep extend?
         var doc = _.extend(exports.DEFAULTS, DATA || {}, cfg);
         couchr.put('api/settings', doc, function (err, res) {
@@ -17045,12 +16967,12 @@ function (exports, require, _) {
             $.get('data/settings.js', function (data) {
                 // cache bust
             });
-            exports.saveLocal();
+            exports.$saveLocal();
             callback();
         });
     };
 
-    exports.get = function () {
+    exports.$get = function () {
         if (!DATA) {
             return exports.DEFAULTS;
         }
@@ -17058,7 +16980,7 @@ function (exports, require, _) {
         return _.extend(exports.DEFAULTS, DATA);
     };
 
-    exports.saveLocal = function () {
+    exports.$saveLocal = function () {
         if (env.hasStorage) {
             localStorage.setItem('dashboard-settings', JSON.stringify(DATA));
         }
@@ -17066,19 +16988,101 @@ function (exports, require, _) {
 
 });
 
-define('lib/projects',[
+define('lib/remote/utils',[
+    'exports',
+    'require',
+    'couchr'
+],
+function (exports, require) {
+
+    var couchr = require('couchr');
+
+
+    exports.$imgToDataURI = function (src, callback) {
+        var img = new Image();
+        img.src = src;
+        img.onload = function () {
+            var canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            var context = canvas.getContext('2d');
+            context.drawImage(img, 0, 0);
+            return callback(null, canvas.toDataURL());
+        };
+        img.onerror = function () {
+            return callback(new Error('Error loading image: ' + src));
+        };
+        img.onabort = function () {
+            return callback(new Error('Loading of image aborted: ' + src));
+        };
+    };
+
+
+    exports.$getRev = function (db_name, id, callback) {
+        // test if revision is available locally
+        couchr.head('/' + db_name + '/' + id, function (err, data, req) {
+            if (err) {
+                if (err.status === 404) {
+                    // if status is 404 then the current head rev may be a
+                    // deleted doc - search changes feed if you need that info
+                    return callback(null, null);
+                }
+                return callback(err);
+            }
+            var etag = req.getResponseHeader('ETag') || '',
+                rev = etag.replace(/^"/, '').replace(/"$/, '');
+
+            return callback(null, rev || null);
+        });
+    };
+
+
+    exports.logErrorsCallback = function (err) {
+        if (err) {
+            return console.error(err);
+        }
+    };
+
+
+    exports.getProjectURL = function (db_name, ddoc) {
+        var id = ddoc._id;
+        if (!/^_design\//.test(id)) {
+            id = '_design/' + id;
+        }
+        if (ddoc.rewrites && ddoc.rewrites.length) {
+            return '/' + db_name + '/' + id + '/_rewrite/';
+        }
+        if (ddoc._attachments) {
+            if (ddoc._attachments['index.html']) {
+                return '/' + db_name + '/' + id + '/index.html';
+            }
+            else if (ddoc._attachments['index.htm']) {
+                return '/' + db_name + '/' + id + '/index.htm';
+            }
+        }
+        return null;
+    };
+
+
+    exports.futonDatabaseURL = function (db_name) {
+        return '/_utils/database.html?' + db_name;
+    };
+
+});
+
+define('lib/remote/projects',[
     'exports',
     'require',
     'jquery',
     'lodash',
     'couchr',
     'async',
-    '../data/dashboard-data',
     'events',
-    './utils',
-    './env',
+    '../../data/dashboard-data',
+    '../local/env',
     './replicate',
-    './settings'
+    './settings',
+    './utils'
 ],
 function (exports, require, $, _) {
 
@@ -17086,13 +17090,13 @@ function (exports, require, $, _) {
         async = require('async'),
         events = require('events'),
         utils = require('./utils'),
-        DATA = require('../data/dashboard-data'),
-        env = require('./env'),
-        replicate = require('./replicate').replicate,
+        DATA = require('../../data/dashboard-data'),
+        env = require('../local/env'),
+        replicate = require('./replicate'),
         settings = require('./settings');
 
 
-    exports.get = function (id) {
+    exports.$get = function (id) {
         if (id) {
             return _.detect(DATA.projects, function (db) {
                 return db._id === id;
@@ -17101,10 +17105,10 @@ function (exports, require, $, _) {
         return DATA.projects;
     };
 
-    exports.update = function (newDoc, /*optional*/callback) {
+    exports.$update = function (newDoc, /*optional*/callback) {
         callback = callback || utils.logErrorsCallback;
 
-        var oldDoc = exports.get(newDoc._id);
+        var oldDoc = exports.$get(newDoc._id);
         var doc = oldDoc ? _.extend(oldDoc, newDoc): newDoc;
 
         var url = 'api/' + encodeURIComponent(doc._id);
@@ -17136,7 +17140,7 @@ function (exports, require, $, _) {
         });
     };
 
-    exports.saveLocal = function () {
+    exports.$saveLocal = function () {
         if (env.hasStorage) {
             localStorage.setItem(
                 'dashboard-projects', JSON.stringify(DATA.projects)
@@ -17144,7 +17148,7 @@ function (exports, require, $, _) {
         }
     };
 
-    exports.refresh = function (/*optional*/callback) {
+    exports.$refresh = function (/*optional*/callback) {
         callback = callback || utils.logErrorsCallback;
         var ev = new events.EventEmitter();
 
@@ -17154,7 +17158,7 @@ function (exports, require, $, _) {
             }
             var completed = 0;
             async.forEachLimit(dbs, 4, function (db, cb) {
-                exports.refreshDB(db, function (err) {
+                exports.$refreshDB(db, function (err) {
                     if (err) {
                         return cb(err);
                     }
@@ -17170,7 +17174,7 @@ function (exports, require, $, _) {
                 if (err) {
                     return callback(err);
                 }
-                exports.saveLocal();
+                exports.$saveLocal();
                 $.get('data/dashboard-data.js', function (data) {
                     // cache bust
                 });
@@ -17180,7 +17184,7 @@ function (exports, require, $, _) {
         return ev;
     };
 
-    exports.refreshDB = function (db, /*optional*/callback) {
+    exports.$refreshDB = function (db, /*optional*/callback) {
         callback = callback || utils.logErrorsCallback;
 
         var url = '/_api/' + encodeURIComponent(db) + '/_all_docs';
@@ -17196,13 +17200,13 @@ function (exports, require, $, _) {
             }
             async.forEachSeries(data.rows || [], function (r, cb) {
                 // For now, update all documents on refresh
-                exports.refreshDoc(db, r.id, cb);
+                exports.$refreshDoc(db, r.id, cb);
             },
             callback);
         });
     };
 
-    exports.refreshDoc = function (db_name, ddoc_id, /*optional*/callback) {
+    exports.$refreshDoc = function (db_name, ddoc_id, /*optional*/callback) {
         callback = callback || utils.logErrorsCallback;
 
         var ddoc_url = '/' + db_name + '/' + ddoc_id;
@@ -17244,7 +17248,7 @@ function (exports, require, $, _) {
                         var dashicon_url = '/_api/' + doc.ddoc_url + '/' +
                             dash.icons['22'];
 
-                        utils.imgToDataURI(dashicon_url, function (err, url) {
+                        utils.$imgToDataURI(dashicon_url, function (err, url) {
                             if (!err && url) {
                                 doc.dashicon = url;
                             }
@@ -17269,16 +17273,15 @@ function (exports, require, $, _) {
                 }
             ],
             function () {
-                console.log(['update', ddoc_url, doc]);
-                exports.update(doc, callback);
+                exports.$update(doc, callback);
             })
 
         });
     };
 
-    exports.create = function (db_name, ddoc_id, callback) {
+    exports.$create = function (db_name, ddoc_id, callback) {
         var ev = new events.EventEmitter(),
-            cfg = settings.get(),
+            cfg = settings.$get(),
             dashboard_db = cfg.info.db_name;
 
         // stores the final project document created in dashboard db
@@ -17297,7 +17300,7 @@ function (exports, require, $, _) {
                     target: db_name,
                     doc_ids: [ddoc_id]
                 };
-                replicate(repdoc, cb);
+                replicate.$replicate(repdoc, cb);
             },
 
             // Copy replicated template to _design doc id
@@ -17323,7 +17326,7 @@ function (exports, require, $, _) {
             // Delete the old template doc replicated initially
             function (cb) {
                 ev.emit('progress', 80);
-                utils.getRev(db_name, ddoc_id, function (err, rev) {
+                utils.$getRev(db_name, ddoc_id, function (err, rev) {
                     if (err) {
                         return cb(err);
                     }
@@ -17336,9 +17339,9 @@ function (exports, require, $, _) {
             function (cb) {
                 ev.emit('progress', 90);
                 var id = '_design/' + ddoc_id;
-                exports.refreshDoc(db_name, id, function (err, doc) {
+                exports.$refreshDoc(db_name, id, function (err, doc) {
                     pdoc = doc;
-                    exports.saveLocal();
+                    exports.$saveLocal();
                     $.get('data/dashboard-data.js', function (data) {
                         // cache bust
                     });
@@ -17351,11 +17354,109 @@ function (exports, require, $, _) {
                 return callback(err);
             }
             ev.emit('progress', 100);
-            console.log(['pdoc', pdoc]);
             callback(null, pdoc);
         });
         return ev;
     };
+
+
+});
+
+define('lib/remote/session',[
+    'couchr',
+    'events',
+    './utils'
+],
+function (couchr, events, utils) {
+    var exports = new events.EventEmitter();
+
+
+    // updated by calling info
+    exports.sessionInfo = null;
+
+
+    var info_in_progress = false;
+    var info_callbacks = [];
+
+    function info_apply_callbacks() {
+        for (var i = 0; i < info_callbacks.length; i++) {
+            info_callbacks[i].apply(this, arguments);
+        }
+        info_callbacks = [];
+    }
+
+    exports.$info = function (/*optional*/callback) {
+        if (info_in_progress) {
+            if (callback) {
+                info_callbacks.push(callback);
+            }
+            return;
+        }
+
+        info_in_progress = true;
+        if (callback) {
+            info_callbacks.push(callback);
+        }
+        else if (!info_callbacks.length) {
+            info_callbacks.push(utils.logErrorsCallback);
+        }
+
+        couchr.get('/_session', function (err, data) {
+            if (err) {
+                return info_apply_callbacks(err);
+            }
+            if (JSON.stringify(data) !== JSON.stringify(exports.sessionInfo)) {
+                exports.sessionInfo = data;
+                exports.emit('change', data);
+            }
+            return info_apply_callbacks(null, data);
+        });
+    };
+
+    exports.$infoCached = function (callback) {
+        if (exports.sessionInfo) {
+            return callback(null, exports.sessionInfo);
+        }
+        exports.$info(callback);
+    };
+
+
+    exports.$logout = function (callback) {
+        callback = callback || utils.logErrorsCallback;
+
+        var data = {username: '_', password: '_'};
+        couchr.delete('/_session', data, function (err, resp) {
+            if (err) {
+                return callback(err);
+            }
+            exports.session = {userCtx: {name: null, roles: []}}
+            exports.emit('change', exports.session);
+            callback(null, exports.session);
+        });
+    };
+
+
+    exports.$login = function (username, password, callback) {
+        var data = {name: username, password: password};
+        couchr.post('/_session', data, function (err, resp) {
+            if (err) {
+                return callback(err);
+            }
+            exports.session = {userCtx: {name: username, roles: resp.roles}}
+            exports.emit('change', exports.session);
+            callback(null, exports.session);
+        });
+    };
+
+
+    return exports;
+});
+
+define('lib/collections/projects',[
+    'exports',
+    'lodash'
+],
+function (exports, _) {
 
     exports.isAdmin = function (userCtx, p) {
         if (_.include(userCtx.roles, '_admin')) {
@@ -17402,96 +17503,14 @@ function (exports, require, $, _) {
         return false;
     };
 
-});
-
-define('lib/session',[
-    'couchr',
-    'events',
-    './utils'
-],
-function (couchr, events, utils) {
-    var exports = new events.EventEmitter();
-
-
-    // updated by calling info
-    exports.sessionInfo = null;
-
-
-    var info_in_progress = false;
-    var info_callbacks = [];
-
-    function info_apply_callbacks() {
-        for (var i = 0; i < info_callbacks.length; i++) {
-            info_callbacks[i].apply(this, arguments);
-        }
-        info_callbacks = [];
-    }
-
-    exports.info = function (/*optional*/callback) {
-        if (info_in_progress) {
-            if (callback) {
-                info_callbacks.push(callback);
-            }
-            return;
-        }
-
-        info_in_progress = true;
-        if (callback) {
-            info_callbacks.push(callback);
-        }
-        else if (!info_callbacks.length) {
-            info_callbacks.push(utils.logErrorsCallback);
-        }
-
-        couchr.get('/_session', function (err, data) {
-            if (err) {
-                return info_apply_callbacks(err);
-            }
-            if (JSON.stringify(data) !== JSON.stringify(exports.sessionInfo)) {
-                exports.sessionInfo = data;
-                exports.emit('change', data);
-            }
-            return info_apply_callbacks(null, data);
-        });
+    exports.isMissingTemplate = function (p) {
+        return !!(p.unknown_root);
     };
 
-    exports.infoCached = function (callback) {
-        if (exports.sessionInfo) {
-            return callback(null, exports.sessionInfo);
-        }
-        exports.info(callback);
+    exports.hasUnknownTemplate = function (p) {
+        return !p.unknown_root && !p.dashboard;
     };
 
-
-    exports.logout = function (callback) {
-        callback = callback || utils.logErrorsCallback;
-
-        var data = {username: '_', password: '_'};
-        couchr.delete('/_session', data, function (err, resp) {
-            if (err) {
-                return callback(err);
-            }
-            exports.session = {userCtx: {name: null, roles: []}}
-            exports.emit('change', exports.session);
-            callback(null, exports.session);
-        });
-    };
-
-
-    exports.login = function (username, password, callback) {
-        var data = {name: username, password: password};
-        couchr.post('/_session', data, function (err, resp) {
-            if (err) {
-                return callback(err);
-            }
-            exports.session = {userCtx: {name: username, roles: resp.roles}}
-            exports.emit('change', exports.session);
-            callback(null, exports.session);
-        });
-    };
-
-
-    return exports;
 });
 
 define('handlebars', [], function () {
@@ -19384,6 +19403,991 @@ define("text/text", function(){});
 
 define('text!templates/projects.handlebars',[],function () { return '<div id="main">\n  <div class="container-fluid">\n\n    {{#if projects}}\n    <table class="table table-striped table-projects">\n      <thead>\n      <tr>\n        <th>Name</th>\n        <th>Template</th>\n        <th>Admins</th>\n        <th>Members</th>\n        {{#if has_any_admin}} <th>Actions</th> {{/if}}\n      </tr>\n      </thead>\n      <tbody>\n        {{#each projects}}\n        <tr>\n          <td class="name">\n            <a title="{{db}}/{{name}}" href="{{url}}">\n              {{#if dashicon}}\n              <img class="icon" alt="Icon" src="{{dashicon}}" />\n              {{else}}\n              <img class="icon" alt="Icon" src="img/icons/default_22.png" />\n              {{/if}}\n            </a>\n            <a title="{{db}}/{{name}}" href="{{url}}">\n              {{db}}\n            </a>\n          </td>\n          <td class="template">\n            {{#if title}}{{title}}{{else}}{{name}}{{/if}}\n          </td>\n          <td class="admins">\n            {{security.admins.names}}\n            {{security.admins.roles}}\n          </td>\n          <td class="members">\n            {{security.members.names}}\n            {{security.members.roles}}\n          </td>\n          {{#if ../has_any_admin}}\n          <td class="actions">\n            {{#if is_admin}}\n              <a class="btn btn-danger">Delete</a>\n            {{/if}}\n          </td>\n          {{/if}}\n        </tr>\n        {{/each}}\n      </tbody>\n    </table>\n    {{/if}}\n\n  </div>\n</div>\n\n<div class="admin-bar visible-admin">\n  <div class="admin-bar-inner">\n    <div id="admin-bar-status"></div>\n    <div id="admin-bar-controls">\n      <a id="projects-refresh-btn" class="btn" href="#">\n        <i class="icon-refresh"></i> Refresh list\n      </a>\n      <a id="projects-add-btn" class="btn btn-success" href="#/templates">\n        <i class="icon-plus-sign"></i> Create new project\n      </a>\n    </div>\n  </div>\n</div>\n';});
 
+define('lib/views/projects',[
+    'exports',
+    'require',
+    'jquery',
+    'lodash',
+    '../remote/projects',
+    '../remote/settings',
+    '../remote/session',
+    '../collections/projects',
+    'hbt!../../templates/projects'
+],
+function (exports, require, $, _) {
+
+    var tmpl = require('hbt!../../templates/projects'),
+        projects = require('../remote/projects'),
+        settings = require('../remote/settings'),
+        session = require('../remote/session'),
+        p_collection = require('../collections/projects');
+
+
+    exports.filterProjects = function (cfg, userCtx, ps) {
+        // filter projects based on preferences in settings object
+        if (!cfg.show_no_templates) {
+            ps = _.reject(ps, p_collection.isMissingTemplate);
+        }
+        if (!cfg.show_unknown_templates) {
+            ps = _.reject(ps, p_collection.hasUnknownTemplate);
+        }
+        // filter out projects the user does not have permission to access
+        var r = _.filter(ps, _.partial(p_collection.isMember, userCtx));
+        return r;
+    };
+
+
+    exports.render = function (cfg, userCtx, ps) {
+        ps = exports.filterProjects(cfg, userCtx, ps);
+        ps = _.map(ps, function (p) {
+            p.is_admin = p_collection.isAdmin(userCtx, p);
+            return p;
+        });
+        var el = $(tmpl({
+            // does user have admin access to any projects in the list?
+            has_any_admin: _.any(ps, _.partial(p_collection.isAdmin, userCtx)),
+            projects: ps
+        }));
+        // bind event handler to refresh button
+        $('#projects-refresh-btn', el).click(
+            exports.$doRefresh(cfg, userCtx, ps)
+        );
+        return el;
+    };
+
+
+    exports.$doRefresh = function (cfg, userCtx, ps) {
+        return function (ev) {
+            ev.preventDefault();
+            var that = this;
+
+            $(this).button('loading');
+            $('#admin-bar-status').html('');
+            $('#main').html('');
+
+            var refresher = projects.$refresh(function (err) {
+                if (err) {
+                    // TODO: add error alert box to status area
+                    return console.error(err);
+                }
+
+                var bar = $('#admin-bar-status .progress .bar');
+                var fn = function () {
+                    $('#admin-bar-status .progress').fadeOut(function () {
+                        $('#content').html( exports.render(cfg, userCtx, ps));
+                    });
+                    $(that).button('reset');
+                };
+                // TODO: support browsers that don't provide transitionEnd!
+                bar.one('transitionEnd', fn);
+                bar.one('oTransitionEnd', fn);       // opera
+                bar.one('msTransitionEnd', fn);      // ie
+                bar.one('transitionend', fn);        // mozilla
+                bar.one('webkitTransitionEnd', fn);  // webkit
+            });
+
+            $('#admin-bar-status').html(
+                '<div class="progress"><div class="bar"></div></div>'
+            );
+            refresher.on('progress', function (value) {
+                $('#admin-bar-status .progress .bar').css({
+                    width: value + '%'
+                });
+            });
+            return false;
+        };
+    };
+
+});
+
+define('lib/views/utils',[
+    'exports',
+    'jquery'
+],
+function (exports, $) {
+
+    exports.clearValidation = function (form) {
+        // clear validation/error messages
+        $('.error', form).removeClass('error');
+        $('.help-inline', form).text('');
+        $('.alert', form).remove();
+        return form;
+    };
+
+    exports.showValidationError = function (e) {
+        e.control_group.addClass('error');
+        $('.help-inline', e.control_group).text(e.text);
+        return e;
+    };
+
+    exports.serializeObject = function (form) {
+        var arr = $(form).serializeArray();
+        return _.foldl(arr, function (obj, f) {
+            if (obj[f.name]) {
+                throw new Error('conflicting name for field: ' + f.name);
+            }
+            obj[f.name] = f.value;
+            return obj;
+        },
+        {});
+    };
+
+    exports.wrapNetworkError = function (err) {
+        if (err.status === 0) {
+            var e = new Error(
+                'Request timed out, please check your connection.'
+            );
+            e.original = err;
+            return e;
+        }
+        return err;
+    };
+
+    exports.showError = function (el, err) {
+        $(el).prepend(
+          '<div class="alert alert-error">' +
+            '<a class="close" data-dismiss="alert">' +
+              '&times;' +
+            '</a>' +
+            '<strong>Error</strong> ' +
+            (err.message || err.toString()) +
+          '</div>'
+        );
+        return el;
+    };
+
+    exports.$clearModals = function () {
+        $('.modal').modal('hide').remove();
+    };
+
+    exports.$showModal = function (html) {
+        exports.$clearModals();
+        return $(html).appendTo(document.body).modal('show');
+    };
+
+});
+
+define('lib/remote/templates',[
+    'exports',
+    'require',
+    'jquery',
+    'lodash',
+    'async',
+    'couchr',
+    'events',
+    './settings',
+    './replicate',
+    './utils'
+],
+function (exports, require, $, _) {
+
+    var settings = require('./settings'),
+        couchr = require('couchr'),
+        events = require('events'),
+        async = require('async'),
+        replicate = require('./replicate'),
+        utils = require('./utils');
+
+
+    exports.$update = function (callback) {
+        var ev = new events.EventEmitter();
+        var cfg = settings.$get();
+
+        var completed_sources = 0;
+        async.concat(cfg.templates.sources, function (s, cb) {
+
+            // force trailing slash on library db url
+            s = s.replace(/\/$/, '') + '/';
+
+            $.ajax({
+                type: 'GET',
+                dataType: 'jsonp',
+                url: s + '/_design/library/_list/jsonp/templates',
+                success: function (data) {
+                    completed_sources++;
+                    ev.emit('progress', Math.floor(
+                        completed_sources / cfg.templates.sources.length * 50
+                    ));
+                    cb(null, _.map(data.rows, function (r) {
+                        r.source = s;
+                        return r;
+                    }));
+                },
+                error: function () {
+                    cb('Could not load templates from source: ' + s);
+                }
+            });
+        },
+        function (err, results) {
+            if (err) {
+                return callback(err);
+            }
+            var completed_results = 0;
+            async.forEach(results, function (r, cb) {
+                var id = 'template:' + r.id;
+                var durl = 'api/' + encodeURIComponent(id);
+                couchr.get(durl, function (err, doc) {
+                    if (err) {
+                        if (err.status === 404) {
+                            doc = {_id: id};
+                        }
+                        else {
+                            return cb(err);
+                        }
+                    }
+                    doc = _.extend(doc, {
+                        type: 'template',
+                        remote: r.value,
+                        source: r.source,
+                        ddoc_id: r.id
+                    });
+                    var rdash = r.value.dashboard;
+                    if (rdash.icons && rdash.icons['22']) {
+                        doc.dashicon = r.source.replace(/\/$/, '') +
+                            '/' + r.id + '/' + rdash.icons['22'];
+                    }
+                    couchr.put(durl, doc, function (err) {
+                        if (err) {
+                            return cb(err);
+                        }
+                        completed_results++;
+                        ev.emit('progress', Math.floor(
+                            50 + completed_results / results.length * 50
+                        ));
+                        cb();
+                    });
+                });
+            },
+            callback);
+        });
+
+        return ev;
+    };
+
+    /**
+     * Searches the _changes feed for updates to a document. This is able to
+     * find the last known _rev for _deleted documents.
+     */
+
+    exports.$findLastEntry = function (id, callback) {
+        var q = {
+            filter: 'dashboard/id',
+            id: id
+        };
+        couchr.get('api/_changes', q, function (err, data) {
+            if (err) {
+                return callback(err);
+            }
+            if (!data.results || !data.results.length) {
+                // no document history found
+                return callback(null, null);
+            }
+            var r = data.results[data.results.length - 1];
+            var last_rev = r.changes[r.changes.length - 1].rev;
+            return callback(null, last_rev);
+        });
+    };
+
+    exports.$clearCheckpoint = function (replication_id, callback) {
+        var id = '_local/' + replication_id,
+            cfg = settings.$get(),
+            db_name = cfg.info.db_name;
+
+        utils.$getRev(db_name, id, function (err, rev) {
+            if (err) {
+                return callback(err);
+            }
+            if (rev) {
+                couchr.delete('api/' + id + '?rev=' + rev, callback);
+            }
+            else {
+                // may be a deleted doc
+                exports.$findLastEntry(id, function (err, rev) {
+                    if (rev) {
+                        couchr.delete('api/' + id + '?rev=' + rev, callback);
+                    }
+                    else {
+                        // unknown rev, may not exist
+                        return callback();
+                    }
+                });
+            }
+        });
+    };
+
+    // replicates a ddoc from remote source and ensure it's installed
+    exports.$replicateDDoc = function (source, ddoc_id, callback) {
+        var repdoc = {
+            source: source,
+            target: settings.$get().info.db_name,
+            doc_ids: [ddoc_id]
+        };
+        replicate.$replicate(repdoc, function (err, repdoc) {
+            if (err) {
+                return callback(err);
+            }
+            // TODO: check for conflicts
+            couchr.get('api/' + ddoc_id, function (err, ddoc) {
+                if (err && err.status === 404) {
+                    // checkpoint stopped the doc from being replicated
+                    var rid = repdoc._replication_id;
+                    exports.$clearCheckpoint(rid, function (err) {
+                        if (err) {
+                            return callback(err);
+                        }
+                        // retry replication
+                        exports.$replicateDDoc(source, ddoc_id, callback);
+                    });
+                    return;
+                }
+                return callback(err, ddoc);
+            });
+        });
+    };
+
+    // updates meta info on template with installed version
+    exports.$installTemplateDoc = function (ddoc, callback) {
+        var tid = encodeURIComponent('template:' + ddoc._id);
+        couchr.get('api/' + tid, function (err, tdoc) {
+            if (err) {
+                return callback(err);
+            }
+            tdoc.installed = {dashboard: ddoc.dashboard, rev: ddoc._rev};
+            couchr.put('api/' + tid, tdoc, function (err, data) {
+                if (err) {
+                    return callback(err);
+                }
+                tdoc._rev = data.rev;
+                return callback(null, tdoc);
+            });
+        });
+    };
+
+    // removes installed ddoc meta info on template doc
+    exports.$uninstallTemplateDoc = function (ddoc_id, callback) {
+        var tid = encodeURIComponent('template:' + ddoc_id);
+        couchr.get('api/' + tid, function (err, tdoc) {
+            if (err) {
+                return callback(err);
+            }
+            delete tdoc.installed;
+            couchr.put('api/' + tid, tdoc, function (err, data) {
+                if (err) {
+                    return callback(err);
+                }
+                tdoc._rev = data.rev;
+                return callback(null, tdoc);
+            });
+        });
+    };
+
+    exports.$purgeDDoc = function (ddoc_id, callback) {
+        var cfg = settings.$get(),
+            db_name = cfg.info.db_name;
+
+
+        function withRev(rev) {
+            var cfg = settings.$get();
+            var db = cfg.info.db_name;
+            var q = {};
+            // TODO: if there are conflicts, include them in this list of revs
+            if (rev) {
+                q[ddoc_id] = [rev];
+                return couchr.post('/' + db + '/_purge', q, callback);
+            }
+            // nothing to purge
+            return callback();
+        }
+
+        utils.$getRev(db_name, ddoc_id, function (err, rev) {
+            if (err) {
+                return callback(err);
+            }
+            if (!rev) {
+                // may be a deleted document
+                exports.$findLastEntry(ddoc_id, function (err, rev) {
+                    if (err) {
+                        return callback(err);
+                    }
+                    withRev(rev);
+                });
+            }
+            else {
+                withRev(rev);
+            }
+        });
+    };
+
+    exports.$install = function (src, ddoc_id, callback) {
+        var ev = new events.EventEmitter();
+        exports.$purgeDDoc(ddoc_id, function (err) {
+            if (err) {
+                return callback(err);
+            }
+            ev.emit('progress', 33);
+            return exports.$replicateDDoc(src, ddoc_id, function (err, ddoc) {
+                if (err) {
+                    return callback(err);
+                }
+                ev.emit('progress', 66);
+                return exports.$installTemplateDoc(ddoc, function (err, tdoc) {
+                    if (err) {
+                        return callback(err);
+                    }
+                    ev.emit('progress', 100);
+                    callback(null, tdoc);
+                });
+            });
+        });
+        return ev;
+    };
+
+    exports.$uninstall = function (ddoc_id, callback) {
+        exports.$purgeDDoc(ddoc_id, function (err) {
+            if (err) {
+                return callback(err);
+            }
+            exports.$uninstallTemplateDoc(ddoc_id, callback);
+        });
+    };
+
+});
+
+define('text!templates/templates.handlebars',[],function () { return '<div id="main">\n  <div class="container-fluid">\n    <div id="templates-list"><p>Loading</p></div>\n  </div>\n</div>\n\n<div class="admin-bar visible-admin">\n  <div class="admin-bar-inner">\n    <div id="admin-bar-status"></div>\n    <div id="admin-bar-controls">\n      <a id="templates-refresh-btn" class="btn" href="#">\n        <i class="icon-refresh"></i> Check for updates\n      </a>\n      <a id="templates-add-btn" class="btn btn-success" href="#/settings">\n        <i class="icon-plus-sign"></i> Add template sources\n      </a>\n    </div>\n  </div>\n</div>\n';});
+
+define('text!templates/templates-list.handlebars',[],function () { return '<table class="table table-striped table-templates">\n  <thead>\n    <tr>\n      <th>Name</th>\n      <th>Source</th>\n      <th>Installed</th>\n      <th>Available</th>\n      <th class="actions">Actions</th>\n    </tr>\n  </thead>\n  <tbody>\n  </tbody>\n</table>\n';});
+
+define('text!templates/templates-row.handlebars',[],function () { return '<tr data-source="{{source}}" data-ddoc-id="{{ddoc_id}}">\n  <td>\n    <div class="name">\n      {{#if dashicon}}\n      <img class="icon" alt="Icon" src="{{dashicon}}" />\n      {{else}}\n      <img class="icon" alt="Icon" src="img/icons/default_22.png" />\n      {{/if}}\n      {{ddoc_id}}\n    </div>\n  </td>\n  <td class="source" style="color: #999">\n    {{source}}\n  </td>\n  <td>\n    {{#if installed.dashboard.version}}\n      {{installed.dashboard.version}}\n    {{else}}\n      --\n    {{/if}}\n  </td>\n  <td>\n    {{remote.dashboard.version}}\n  </td>\n  <td class="actions">\n    {{#if installed}}\n      <a class="btn template-uninstall-btn"><i class="icon-trash"></i> Uninstall</a>\n      <a class="btn template-create-btn"><i class="icon-briefcase"></i> Create Project</a>\n    {{else}}\n      <a class="btn template-install-btn">\n        <i class="icon-download"></i> Install\n      </a>\n    {{/if}}\n  </td>\n</tr>\n';});
+
+define('text!templates/templates-create-project-modal.handlebars',[],function () { return '<div class="modal hide" id="create-project-modal">\n  <div class="modal-header">\n    <button type="button" class="close" data-dismiss="modal">×</button>\n    <h3>Create project</h3>\n  </div>\n  <div class="modal-body">\n    <form id="create-project-form" class="form-horizontal">\n      <fieldset>\n        <div class="control-group">\n          <label class="control-label" for="input-project-template">Template</label>\n          <div class="controls">\n            <span class="template">{{{template_td}}}</span>\n          </div>\n        </div>\n        <div class="control-group">\n          <label class="control-label" for="input-project-name">Name</label>\n          <div class="controls">\n            <input type="text" class="input-xlarge" id="input-project-name"\n                   value="{{db_name}}">\n          </div>\n        </div>\n      </fieldset>\n    </form>\n  </div>\n  <div class="modal-footer">\n    <a href="#" class="btn" data-dismiss="modal">Close</a>\n    <a href="#" class="btn btn-primary">Create</a>\n  </div>\n</div>\n';});
+
+define('text!templates/templates-project-progress-modal.handlebars',[],function () { return '<div class="modal hide" id="create-project-modal">\n  <div class="modal-header">\n    <button type="button" class="close" data-dismiss="modal">×</button>\n    <h3>Creating project...</h3>\n  </div>\n  <div class="modal-body">\n    <div class="progress">\n      <div class="bar"></div>\n    </div>\n  </div>\n  <div class="modal-footer">\n    <a href="#" class="btn" data-dismiss="modal">Close</a>\n    <a href="#" class="btn btn-primary disabled">loading</a>\n  </div>\n</div>\n';});
+
+define('text!templates/templates-done-project-modal.handlebars',[],function () { return '<div class="modal hide" id="done-project-modal">\n  <div class="modal-header">\n    <button type="button" class="close" data-dismiss="modal">×</button>\n    <h3>Done!</h3>\n  </div>\n  <div class="modal-body">\n    <a class="project-url" href="{{url}}">{{url}}</a>\n  </div>\n  <div class="modal-footer">\n    <a href="#" class="btn" data-dismiss="modal">Close</a>\n    <a href="{{url}}" class="btn btn-primary">Open</a>\n  </div>\n</div>\n';});
+
+define('lib/views/templates',[
+    'exports',
+    'require',
+    'jquery',
+    'lodash',
+    'couchr',
+    './utils',
+    '../remote/templates',
+    '../remote/projects',
+    'hbt!../../templates/templates',
+    'hbt!../../templates/templates-list',
+    'hbt!../../templates/templates-row',
+    'hbt!../../templates/templates-create-project-modal',
+    'hbt!../../templates/templates-project-progress-modal',
+    'hbt!../../templates/templates-done-project-modal'
+],
+function (exports, require, $, _) {
+
+    var tmpl = require('hbt!../../templates/templates'),
+        templates = require('../remote/templates'),
+        projects = require('../remote/projects'),
+        vutils = require('./utils'),
+        couchr = require('couchr');
+
+
+    exports.render = function () {
+        var el = $(tmpl({}));
+        $('#templates-refresh-btn', el).click( exports.$doRefresh );
+        return el;
+    };
+
+    exports.$showDoneModal = function (url) {
+        var tmpl = require('hbt!../../templates/templates-done-project-modal');
+        var m = vutils.$showModal(tmpl({ url: url }));
+        // so if you press enter you go to desired url
+        $('.btn-primary', m).focus();
+    };
+
+    exports.$showProgressModal = function () {
+        var tmpl = require(
+            'hbt!../../templates/templates-project-progress-modal'
+        );
+        vutils.$showModal(tmpl({}));
+    };
+
+    exports.$submitCreateProject = function (ddoc_id) {
+        return function (ev) {
+            ev.preventDefault();
+            var name = $('#input-project-name', m).val();
+            var m = exports.$showProgressModal();
+
+            var bar = $('.progress .bar', m);
+            var creator = projects.$create(name, ddoc_id, function (err, doc) {
+                if (err) {
+                    exports.$showProjectModal(ddoc_id, name);
+                    vutils.showError($('.modal-body', m), err);
+                    return;
+                }
+                var fn = function () {
+                    exports.$showDoneModal(doc.url);
+                };
+                bar.one('transitionEnd', fn);
+                bar.one('oTransitionEnd', fn);       // opera
+                bar.one('msTransitionEnd', fn);      // ie
+                bar.one('transitionend', fn);        // mozilla
+                bar.one('webkitTransitionEnd', fn);  // webkit
+            });
+            creator.on('progress', function (value) {
+                bar.css({width: value + '%'});
+            });
+            return false;
+        };
+    };
+
+    exports.$showProjectModal = function (ddoc_id, db_name) {
+        var tmpl = require(
+            'hbt!../../templates/templates-create-project-modal'
+        );
+        var html = tmpl({
+            ddoc_id: ddoc_id,
+            db_name: db_name || '',
+            template_td: $('tr[data-ddoc-id=' + ddoc_id + '] .name').html()
+        });
+        var m = vutils.$showModal(html);
+
+        $('#input-project-name', m).focus();
+        $('.btn-primary', m).click( exports.$submitCreateProject(ddoc_id) );
+        $('form', m).submit( exports.$submitCreateProject(ddoc_id) );
+    };
+
+    exports.$doInstallTemplate = function (tr, doc) {
+        return function (ev) {
+            ev.preventDefault();
+            var that = this;
+
+            var progress = $('<div class="progress" />');
+            var bar = $('<div class="bar" />').appendTo(progress);
+            var btn = $(this).replaceWith(progress);
+
+            var installer = templates.$install(
+                doc.source, doc.ddoc_id, function (err, tdoc) {
+                    if (err) {
+                        // TODO: show error message to user
+                        return console.error(err);
+                    }
+                    var fn = function () {
+                        progress.replaceWith(btn);
+                        // redraw row
+                        tr.replaceWith( exports.renderRow(tdoc) );
+                    };
+                    bar.one('transitionEnd', fn);
+                    bar.one('oTransitionEnd', fn);       // opera
+                    bar.one('msTransitionEnd', fn);      // ie
+                    bar.one('transitionend', fn);        // mozilla
+                    bar.one('webkitTransitionEnd', fn);  // webkit
+                }
+            );
+            installer.on('progress', function (value) {
+                bar.css({width: value + '%'});
+            });
+            return false;
+        };
+    };
+
+    exports.$doUninstallTemplate = function (tr, doc) {
+        return function (ev) {
+            ev.preventDefault();
+            var that = this;
+
+            $(that).button('loading');
+            templates.$uninstall(doc.ddoc_id, function (err, tdoc) {
+                if (err) {
+                    // TODO: show error message to user
+                    return console.error(err);
+                }
+                //$(that).button('reset');
+                // redraw row
+                tr.replaceWith( exports.renderRow(tdoc) );
+            });
+            return false;
+        };
+    };
+
+    exports.renderRow = function (doc) {
+        var tr = $(require('hbt!../../templates/templates-row')(doc));
+        $('.template-install-btn', tr).click(
+            exports.$doInstallTemplate(tr, doc)
+        );
+        $('.template-uninstall-btn', tr).click(
+            exports.$doUninstallTemplate(tr, doc)
+        );
+        $('.template-create-btn', tr).click(function (ev) {
+            ev.preventDefault();
+            exports.$showProjectModal(doc.ddoc_id);
+            return false;
+        });
+        return tr;
+    }
+
+    exports.renderList = function (data) {
+        var el = $(require('hbt!../../templates/templates-list')({}));
+        _.each(data.rows, function (r) {
+            $('tbody', el).append( exports.renderRow(r.doc) );
+        });
+        return el;
+    };
+
+    exports.$doRefresh = function (ev) {
+        ev.preventDefault();
+        var that = this;
+
+        $('#templates-list').html('');
+        $(this).button('loading');
+
+        var updator = templates.$update(function (err) {
+            if (err) {
+                // TODO: show error message to user
+                return console.error(err);
+            }
+            var bar = $('#admin-bar-status .progress .bar');
+            var fn = function () {
+                // fetch template list from couchdb
+                var vurl = 'api/_design/dashboard/_view/templates';
+                couchr.get(vurl, {include_docs: true}, function (err, data) {
+                    if (err) {
+                        // TODO: show error message to user
+                        return console.error(err);
+                    }
+                    $('#admin-bar-status .progress').fadeOut(function () {
+                        var el = exports.renderList(data);
+                        $('#templates-list').html(el);
+                    });
+                });
+                $(that).button('reset');
+            };
+            bar.one('transitionEnd', fn);
+            bar.one('oTransitionEnd', fn);       // opera
+            bar.one('msTransitionEnd', fn);      // ie
+            bar.one('transitionend', fn);        // mozilla
+            bar.one('webkitTransitionEnd', fn);  // webkit
+        });
+        $('#admin-bar-status').html(
+            '<div class="progress"><div class="bar"></div></div>'
+        );
+        updator.on('progress', function (value) {
+            $('#admin-bar-status .progress .bar').css({
+                width: value + '%'
+            });
+        });
+        return false;
+    };
+
+});
+
+define('text!templates/settings.handlebars',[],function () { return '<div id="main">\n  <div class="container-fluid">\n\n    <form id="settings-form" class="form-horizontal">\n\n      <fieldset>\n        <legend>Template sources</legend>\n        <div class="control-group">\n          <label class="control-label" for="template_sources">Source URLs</label>\n          <div class="controls">\n            <textarea class="input-xlarge" id="template_sources" rows="5">{{#each settings.templates.sources}}{{this}}\n{{/each}}</textarea>\n            <p class="help-block">Enter one full URL per line (including http://)</p>\n          </div>\n        </div>\n      </fieldset>\n\n      <fieldset>\n        <legend>Projects list</legend>\n        <div class="control-group">\n          <label class="control-label" for="projects_show_no_templates">No templates</label>\n          <div class="controls">\n            <label class="checkbox" for="projects_show_no_templates">\n              <input type="checkbox" id="projects_show_no_templates" {{#if settings.projects.show_no_templates}}checked="checked" {{/if}}/>\n              Include projects with no template (opens database in Futon)\n            </label>\n          </div>\n        </div>\n        <div class="control-group">\n          <label class="control-label" for="projects_show_unknown_templates">Unknown templates</label>\n          <div class="controls">\n            <label class="checkbox" for="projects_show_unknown_templates">\n              <input type="checkbox" id="projects_show_unknown_templates" {{#if settings.projects.show_unknown_templates}}checked="checked" {{/if}}/>\n              Include projects with unknown templates in the list\n            </label>\n          </div>\n        </div>\n      </fieldset>\n\n    </form>\n\n  </div>\n</div>\n\n<div class="admin-bar visible-admin">\n  <div class="admin-bar-inner">\n    <div id="admin-bar-status"></div>\n    <div id="admin-bar-controls">\n      <a id="settings-save-btn" class="btn btn-primary" href="#">\n        <i class="icon-save"></i> Save changes\n      </a>\n    </div>\n  </div>\n</div>\n';});
+
+define('lib/views/settings',[
+    'exports',
+    'require',
+    'jquery',
+    'lodash',
+    '../remote/settings',
+    'hbt!../../templates/settings'
+],
+function (exports, require, $, _) {
+
+    var tmpl = require('hbt!../../templates/settings'),
+        settings = require('../remote/settings');
+
+
+    exports.render = function (cfg) {
+        var el = $( tmpl({ settings: cfg }) );
+        $('#settings-form', el).submit( exports.$submitForm );
+        $('#settings-save-btn', el).click( exports.$submitForm );
+        return el;
+    };
+
+
+    exports.$submitForm = function (ev) {
+        ev.preventDefault();
+        $('#settings-save-btn').button('loading');
+
+        var cfg = {templates: {}, projects: {}};
+        cfg.templates.sources = _.compact(
+            $('#template_sources').val().split('\n')
+        );
+
+        var no_templates = $('#projects_show_no_templates').is(':checked');
+        cfg.projects.show_no_templates = no_templates;
+
+        var unknown = $('#projects_show_unknown_templates').is(':checked');
+        cfg.projects.show_unknown_templates = unknown;
+
+        settings.$update(cfg, function (err) {
+            if (err) {
+                // TODO: add message to admin status bar
+                console.error(err);
+                return;
+            }
+            $('#settings-save-btn').button('reset');
+        });
+        return false;
+    };
+
+});
+
+define('text!templates/sessionmenu.handlebars',[],function () { return '{{#if userCtx.name}}\n\n  <ul class="nav hidden-phone">\n    <li><a href="#/account">{{userCtx.name}}</a></li>\n    <li class="divider-vertical"></li>\n    <li><a class="signout-link" href="#">\n      <i class="icon-signout"></i> Sign out\n    </a></li>\n  </ul>\n\n  <ul class="nav visible-phone">\n    <li class="dropdown">\n      <a href="#" class="dropdown-toggle" data-toggle="dropdown">\n        <i class="icon-user"></i> <b class="caret"></b>\n      </a>\n      <ul class="dropdown-menu">\n        <li><a href="#/account">{{userCtx.name}}</a></li>\n        <li><a class="signout-link" href="#">\n          <i class="icon-signout"></i> Sign out\n        </a></li>\n      </ul>\n    </li>\n  </ul>\n\n{{else}}\n\n  <ul class="nav hidden-phone">\n    <li><a href="#/signup">Create Account</a></li>\n    <li><a class="signin-link" href="#/login">\n      <i class="icon-signin"></i> Sign in\n    </a></li>\n  </ul>\n\n  <ul class="nav visible-phone">\n    <li class="dropdown">\n      <a href="#" class="dropdown-toggle" data-toggle="dropdown">\n        <i class="icon-user"></i> <b class="caret"></b>\n      </a>\n      <ul class="dropdown-menu">\n        <li><a href="#/signup">Create account</a></li>\n        <li><a class="signin-link">\n          <i class="icon-signin"></i> Sign in\n        </a></li>\n      </ul>\n    </li>\n  </ul>\n\n{{/if}}\n';});
+
+define('lib/views/sessionmenu',[
+    'exports',
+    'require',
+    'jquery',
+    '../remote/session',
+    'hbt!../../templates/sessionmenu'
+],
+function (exports, require, $) {
+
+    var session = require('../remote/session');
+
+
+    exports.render = function (info) {
+        var el = $( require('hbt!../../templates/sessionmenu')(info) );
+        $('.signout-link', el).click( exports.$doLogout );
+        return el;
+    };
+
+
+    exports.$doLogout = function (ev) {
+        ev.preventDefault();
+        session.$logout();
+        return false;
+    };
+
+});
+
+define('text!templates/login.handlebars',[],function () { return '<div class="center-form">\n  <form id="login-form" class="form-horizontal">\n    <fieldset>\n      <legend>Existing user</legend>\n      <div class="control-group">\n        <label class="control-label" for="login_username">Username</label>\n        <div class="controls">\n          <input name="name" type="text" class="input-xlarge" id="login_username" value="{{username}}">\n          <p class="help-inline"></p>\n        </div>\n      </div>\n      <div class="control-group">\n        <label class="control-label" for="login_password">Password</label>\n        <div class="controls">\n          <input name="password" type="password" class="input-medium" id="login_password" value="{{password}}">\n          <p class="help-inline"></p>\n        </div>\n      </div>\n      <div class="form-actions">\n        <button id="login_submit" type="submit" data-loading-text="Please wait..." class="btn btn-primary">Login</button>\n        <a style="position: relative; top: 2px; left: 10px;" href="#/signup">Don\'t have an account?</a>\n      </div>\n    </fieldset>\n  </form>\n</div>\n';});
+
+define('lib/views/login',[
+    'exports',
+    'require',
+    'jquery',
+    './utils',
+    '../remote/session',
+    'hbt!../../templates/login'
+],
+function (exports, require, $) {
+
+    var session = require('../remote/session'),
+        vutils = require('./utils');
+
+
+    exports.render = function (next, /*opt*/username, /*opt*/password) {
+        var el = $(require('hbt!../../templates/login')({
+            username: username,
+            password: password
+        }))
+        $('#login-form', el).submit( exports.$submitForm(next) );
+        return el;
+    };
+
+    exports.getValidationErrors = function (form) {
+        var username_input = $('#login_username');
+        var password_input = $('#login_password');
+
+        var errs = [];
+        if (!username_input.val()) {
+            errs.push({
+                input: username_input,
+                control_group: username_input.parents('.control-group'),
+                text: 'Required'
+            });
+        }
+        if (!password_input.val()) {
+            errs.push({
+                input: password_input,
+                control_group: password_input.parents('.control-group'),
+                text: 'Required'
+            });
+        }
+        return errs;
+    };
+
+    // this can have side-effects, and the main view can bind this function
+    // without them executing (until the parent object is inserted into the dom)
+    // and so remain 'safe' -- BUT when editing a provided DOM element, we don't
+    // know if it's been put into the DOM or not already, so any event binding
+    // *would* be a side-effect -- this time it's only safe because we're
+    // CREATING a new DOM element and therefore KNOW it's not in the main
+    // document yet.
+
+    exports.$submitForm = function (next) {
+        return function (ev) {
+            ev.preventDefault();
+            var form = this;
+
+            // clear validation/error messages
+            vutils.clearValidation(form);
+
+            var errs = _.map(
+                exports.getValidationErrors(form),
+                vutils.showValidationError
+            );
+            if (errs.length) {
+                return false;
+            }
+
+            var vals = vutils.serializeObject(form);
+            $('#login_submit').button('loading');
+
+            session.$login(vals.name, vals.password, function (err, res) {
+                $('#login_submit').button('reset');
+
+                if (err) {
+                    return vutils.showError(
+                        $('fieldset', form),
+                        vutils.wrapNetworkError(err)
+                    );
+                }
+                window.location = next ? decodeURIComponent(next): '#/';
+            });
+            return false;
+        };
+    };
+
+});
+
+define('lib/remote/users',[
+    'exports',
+    'couchr',
+    'lodash'
+],
+function (exports, couchr, _) {
+
+    exports.$authDB = function (callback) {
+        couchr.get('/_session', function (err, resp) {
+            if (err) {
+                return callback(err);
+            }
+            return callback(null, resp.info.authentication_db);
+        });
+    };
+
+    exports.$create = function (name, password, /*opt*/prop, callback) {
+        if (!callback) {
+            callback = prop;
+            prop = {};
+        }
+        var doc = _.extend({
+            _id: 'org.couchdb.user:' + name,
+            type: 'user',
+            name: name,
+            password: password,
+            roles: []
+        }, prop);
+
+        exports.$authDB(function (err, db_name) {
+            if (err) {
+                return callback(err);
+            }
+            var url = '/' + db_name + '/' + encodeURIComponent(doc._id);
+            couchr.put(url, doc, callback);
+        });
+    };
+
+    // TODO: exports.makeAdmin (posts to /_config/admins)
+
+});
+
+define('text!templates/signup.handlebars',[],function () { return '<div class="center-form">\n  <form id="signup-form" class="form-horizontal">\n    <fieldset>\n      <legend>New user</legend>\n      <div class="control-group">\n        <label class="control-label" for="signup_username">Username</label>\n        <div class="controls">\n          <input name="name" type="text" class="input-xlarge" id="signup_username" value="{{username}}">\n          <p class="help-inline"></p>\n        </div>\n      </div>\n      <div class="control-group">\n        <label class="control-label" for="signup_email">Email</label>\n        <div class="controls">\n          <input name="email" type="text" class="input-xlarge" id="signup_email">\n          <p class="help-inline"></p>\n        </div>\n      </div>\n      <div class="control-group">\n        <label class="control-label" for="signup_password">Password</label>\n        <div class="controls">\n          <input name="password" type="password" class="input-medium" id="signup_password" value="{{password}}">\n          <p class="help-inline"></p>\n        </div>\n      </div>\n      <div class="form-actions">\n        <button id="signup_submit" type="submit" data-loading-text="Please wait..." class="btn btn-primary">Create my account</button>\n        <a style="position: relative; top: 2px; left: 10px;" href="#/login">Already have an account?</a>\n      </div>\n    </fieldset>\n  </form>\n</div>\n';});
+
+define('lib/views/signup',[
+    'exports',
+    'require',
+    'jquery',
+    'async',
+    './utils',
+    '../remote/session',
+    '../remote/users',
+    'hbt!../../templates/signup'
+],
+function (exports, require, $) {
+
+    var tmpl = require('hbt!../../templates/signup'),
+        session = require('../remote/session'),
+        users = require('../remote/users'),
+        vutils = require('./utils'),
+        async = require('async');
+
+
+    exports.render = function (username, password) {
+        var el = $(tmpl({
+            username: username,
+            password: password
+        }));
+        $('#signup-form', el).submit( exports.$submitForm );
+        return el;
+    };
+
+    exports.getValidationErrors = function (form) {
+        var username_input  = $('#signup_username', form);
+        var email_input     = $('#signup_email', form);
+        var password_input  = $('#signup_password', form);
+
+        var errs = [];
+        var required_inputs = [username_input, email_input, password_input];
+
+        _.each(required_inputs, function (input) {
+            if (!input.val()) {
+                errs.push({
+                    input: input,
+                    control_group: input.parents('.control-group'),
+                    text: 'Required'
+                });
+            }
+        });
+        return errs;
+    };
+
+    exports.$submitForm = function (ev) {
+        ev.preventDefault();
+        var form = this;
+
+        // clear validation/error messages
+        vutils.clearValidation(form);
+
+        var errs = _.map(
+            exports.getValidationErrors(form),
+            vutils.showValidationError
+        );
+        if (errs.length) {
+            return false;
+        }
+
+        var v = vutils.serializeObject(form);
+        $('#signup_submit').button('loading');
+
+        async.series([
+            session.$logout,
+            async.apply(users.$create, v.name, v.password, {email: v.email}),
+            async.apply(session.$login, v.name, v.password)
+        ],
+        function (err) {
+            $('#signup_submit').button('reset');
+            if (err) {
+                // TODO: roll-back user creation ?
+                if (err.status === 409 || err.status === 404) {
+                    err = new Error('User already exists');
+                }
+                vutils.showError(
+                    $('fieldset', form),
+                    vutils.wrapNetworkError(err)
+                );
+            }
+            else {
+                window.location = '#/';
+            }
+        });
+
+        return false;
+    };
+
+});
+
 define('text!templates/navigation.handlebars',[],function () { return '<ul class="nav">\n  <li{{#if projects}} class="active"{{/if}}>\n    <a href="#/"><i class="icon-briefcase"></i> Projects</a>\n  </li>\n  <li class="visible-admin{{#if templates}} active{{/if}}">\n    <a href="#/templates"><i class="icon-paste"></i> Templates</a>\n  </li>\n  <li class="visible-admin{{#if settings}} active{{/if}}">\n    <a href="#/settings"><i class="icon-wrench"></i> Settings</a>\n  </li>\n</ul>\n';});
 
 /* ============================================================
@@ -19483,422 +20487,6 @@ define('text!templates/navigation.handlebars',[],function () { return '<ul class
 
 }(window.jQuery);
 define("bootstrap/js/bootstrap-button", function(){});
-
-define('lib/views/projects',[
-    'require',
-    'jquery',
-    'lodash',
-    '../projects',
-    '../settings',
-    '../session',
-    'hbt!../../templates/projects',
-    'hbt!../../templates/navigation',
-    'bootstrap/js/bootstrap-button'
-],
-function (require, $, _) {
-
-    var tmpl = require('hbt!../../templates/projects'),
-        projects = require('../projects'),
-        settings = require('../settings'),
-        session = require('../session');
-
-
-    function getProjectList() {
-        var plist = projects.get();
-        var cfg = settings.get().projects;
-
-        if (!cfg.show_no_templates) {
-            plist = _.reject(plist, function (p) {
-                return p.unknown_root;
-            });
-        }
-        if (!cfg.show_unknown_templates) {
-            plist = _.reject(plist, function (p) {
-                return !p.unknown_root && !p.dashboard;
-            });
-        }
-        return plist;
-    }
-
-
-    function renderProjects(ps, userCtx) {
-        // filter out projects the user does not have permission to access
-        ps = _.filter(ps, _.partial(projects.isMember, userCtx));
-
-        // set is_admin on projects user is admin of
-        ps = _.map(ps, function (p) {
-            p.is_admin = projects.isAdmin(userCtx, p);
-            return p;
-        });
-
-        // does user have admin access to any projects in the list?
-        var has_admin = _.any(ps, _.partial(projects.isAdmin, userCtx));
-
-        // render projects page
-        $('#content').html(tmpl({
-            has_any_admin: has_admin,
-            projects: ps
-        }));
-    }
-
-
-    return function () {
-        session.infoCached(function (err, info) {
-            renderProjects(getProjectList(), info.userCtx);
-            session.on('change', function (info) {
-                renderProjects(getProjectList(), info.userCtx);
-            });
-        });
-
-        $('#navigation').html(
-            require('hbt!../../templates/navigation')({
-                projects: true
-            })
-        );
-
-        $('#projects-refresh-btn').click(function (ev) {
-            ev.preventDefault();
-            var that = this;
-
-            $(this).button('loading');
-            $('#admin-bar-status').html('');
-            $('#main').html('');
-
-            var refresher = projects.refresh(function (err) {
-                if (err) {
-                    // TODO: add error alert box to status area
-                    return console.error(err);
-                }
-
-                var bar = $('#admin-bar-status .progress .bar');
-                var fn = function () {
-                    $('#admin-bar-status .progress').fadeOut(function () {
-                        session.infoCached(function (err, info) {
-                            if (err) {
-                                return console.error(err);
-                            }
-                            renderProjects(getProjectList(), info.userCtx)
-                        });
-                    });
-                    $(that).button('reset');
-                };
-                bar.one('transitionEnd', fn);
-                bar.one('oTransitionEnd', fn);       // opera
-                bar.one('msTransitionEnd', fn);      // ie
-                bar.one('transitionend', fn);        // mozilla
-                bar.one('webkitTransitionEnd', fn);  // webkit
-            });
-
-            $('#admin-bar-status').html(
-                '<div class="progress"><div class="bar"></div></div>'
-            );
-            refresher.on('progress', function (value) {
-                $('#admin-bar-status .progress .bar').css({
-                    width: value + '%'
-                });
-            });
-
-            return false;
-        });
-    };
-
-});
-
-define('lib/templates',[
-    'exports',
-    'require',
-    'jquery',
-    'lodash',
-    'async',
-    'couchr',
-    'events',
-    './settings',
-    './replicate',
-    './utils'
-],
-function (exports, require, $, _) {
-
-    var settings = require('./settings'),
-        couchr = require('couchr'),
-        events = require('events'),
-        async = require('async'),
-        replicate = require('./replicate').replicate,
-        utils = require('./utils');
-
-
-    exports.update = function (callback) {
-        var ev = new events.EventEmitter();
-        var cfg = settings.get();
-
-        var completed_sources = 0;
-        async.concat(cfg.templates.sources, function (s, cb) {
-
-            // force trailing slash on library db url
-            s = s.replace(/\/$/, '') + '/';
-
-            $.ajax({
-                type: 'GET',
-                dataType: 'jsonp',
-                url: s + '/_design/library/_list/jsonp/templates',
-                success: function (data) {
-                    completed_sources++;
-                    ev.emit('progress', Math.floor(
-                        completed_sources / cfg.templates.sources.length * 50
-                    ));
-                    cb(null, _.map(data.rows, function (r) {
-                        r.source = s;
-                        return r;
-                    }));
-                },
-                error: function () {
-                    cb('Could not load templates from source: ' + s);
-                }
-            });
-        },
-        function (err, results) {
-            if (err) {
-                return callback(err);
-            }
-            var completed_results = 0;
-            async.forEach(results, function (r, cb) {
-                var id = 'template:' + r.id;
-                var durl = 'api/' + encodeURIComponent(id);
-                couchr.get(durl, function (err, doc) {
-                    if (err) {
-                        if (err.status === 404) {
-                            doc = {_id: id};
-                        }
-                        else {
-                            return cb(err);
-                        }
-                    }
-                    doc = _.extend(doc, {
-                        type: 'template',
-                        remote: r.value,
-                        source: r.source,
-                        ddoc_id: r.id
-                    });
-                    var rdash = r.value.dashboard;
-                    if (rdash.icons && rdash.icons['22']) {
-                        doc.dashicon = r.source.replace(/\/$/, '') +
-                            '/' + r.id + '/' + rdash.icons['22'];
-                    }
-                    couchr.put(durl, doc, function (err) {
-                        if (err) {
-                            return cb(err);
-                        }
-                        completed_results++;
-                        ev.emit('progress', Math.floor(
-                            50 + completed_results / results.length * 50
-                        ));
-                        cb();
-                    });
-                });
-            },
-            callback);
-        });
-
-        return ev;
-    };
-
-    /**
-     * Searches the _changes feed for updates to a document. This is able to
-     * find the last known _rev for _deleted documents.
-     */
-
-    exports.findLastEntry = function (id, callback) {
-        var q = {
-            filter: 'dashboard/id',
-            id: id
-        };
-        couchr.get('api/_changes', q, function (err, data) {
-            if (err) {
-                return callback(err);
-            }
-            if (!data.results || !data.results.length) {
-                // no document history found
-                return callback(null, null);
-            }
-            var r = data.results[data.results.length - 1];
-            var last_rev = r.changes[r.changes.length - 1].rev;
-            return callback(null, last_rev);
-        });
-    };
-
-    exports.clearCheckpoint = function (replication_id, callback) {
-        var id = '_local/' + replication_id,
-            cfg = settings.get(),
-            db_name = cfg.info.db_name;
-
-        utils.getRev(db_name, id, function (err, rev) {
-            if (err) {
-                return callback(err);
-            }
-            if (rev) {
-                couchr.delete('api/' + id + '?rev=' + rev, callback);
-            }
-            else {
-                // may be a deleted doc
-                exports.findLastEntry(id, function (err, rev) {
-                    if (rev) {
-                        couchr.delete('api/' + id + '?rev=' + rev, callback);
-                    }
-                    else {
-                        // unknown rev, may not exist
-                        return callback();
-                    }
-                });
-            }
-        });
-    };
-
-    // replicates a ddoc from remote source and ensure it's installed
-    exports.replicateDDoc = function (source, ddoc_id, callback) {
-        var repdoc = {
-            source: source,
-            target: settings.get().info.db_name,
-            doc_ids: [ddoc_id]
-        };
-        replicate(repdoc, function (err, repdoc) {
-            if (err) {
-                return callback(err);
-            }
-            // TODO: check for conflicts
-            couchr.get('api/' + ddoc_id, function (err, ddoc) {
-                if (err && err.status === 404) {
-                    // checkpoint stopped the doc from being replicated
-                    var rid = repdoc._replication_id;
-                    exports.clearCheckpoint(rid, function (err) {
-                        if (err) {
-                            return callback(err);
-                        }
-                        // retry replication
-                        exports.replicateDDoc(source, ddoc_id, callback);
-                    });
-                    return;
-                }
-                return callback(err, ddoc);
-            });
-        });
-    };
-
-    // updates meta info on template with installed version
-    exports.installTemplateDoc = function (ddoc, callback) {
-        var tid = encodeURIComponent('template:' + ddoc._id);
-        couchr.get('api/' + tid, function (err, tdoc) {
-            if (err) {
-                return callback(err);
-            }
-            tdoc.installed = {dashboard: ddoc.dashboard, rev: ddoc._rev};
-            couchr.put('api/' + tid, tdoc, function (err, data) {
-                if (err) {
-                    return callback(err);
-                }
-                tdoc._rev = data.rev;
-                return callback(null, tdoc);
-            });
-        });
-    };
-
-    // removes installed ddoc meta info on template doc
-    exports.uninstallTemplateDoc = function (ddoc_id, callback) {
-        var tid = encodeURIComponent('template:' + ddoc_id);
-        couchr.get('api/' + tid, function (err, tdoc) {
-            if (err) {
-                return callback(err);
-            }
-            delete tdoc.installed;
-            couchr.put('api/' + tid, tdoc, function (err, data) {
-                if (err) {
-                    return callback(err);
-                }
-                tdoc._rev = data.rev;
-                return callback(null, tdoc);
-            });
-        });
-    };
-
-    exports.purgeDDoc = function (ddoc_id, callback) {
-        var cfg = settings.get(),
-            db_name = cfg.info.db_name;
-
-
-        function withRev(rev) {
-            var cfg = settings.get();
-            var db = cfg.info.db_name;
-            var q = {};
-            // TODO: if there are conflicts, include them in this list of revs
-            if (rev) {
-                q[ddoc_id] = [rev];
-                return couchr.post('/' + db + '/_purge', q, callback);
-            }
-            // nothing to purge
-            return callback();
-        }
-
-        utils.getRev(db_name, ddoc_id, function (err, rev) {
-            if (err) {
-                return callback(err);
-            }
-            if (!rev) {
-                // may be a deleted document
-                exports.findLastEntry(ddoc_id, function (err, rev) {
-                    if (err) {
-                        return callback(err);
-                    }
-                    withRev(rev);
-                });
-            }
-            else {
-                withRev(rev);
-            }
-        });
-    };
-
-    exports.install = function (src, ddoc_id, callback) {
-        var ev = new events.EventEmitter();
-        exports.purgeDDoc(ddoc_id, function (err) {
-            if (err) {
-                return callback(err);
-            }
-            ev.emit('progress', 33);
-            return exports.replicateDDoc(src, ddoc_id, function (err, ddoc) {
-                if (err) {
-                    return callback(err);
-                }
-                ev.emit('progress', 66);
-                return exports.installTemplateDoc(ddoc, function (err, tdoc) {
-                    if (err) {
-                        return callback(err);
-                    }
-                    ev.emit('progress', 100);
-                    callback(null, tdoc);
-                });
-            });
-        });
-        return ev;
-    };
-
-    exports.uninstall = function (ddoc_id, callback) {
-        exports.purgeDDoc(ddoc_id, function (err) {
-            if (err) {
-                return callback(err);
-            }
-            exports.uninstallTemplateDoc(ddoc_id, callback);
-        });
-    };
-
-});
-
-define('text!templates/templates.handlebars',[],function () { return '<div id="main">\n  <div class="container-fluid">\n    <div id="templates-list"><p>Loading</p></div>\n  </div>\n</div>\n\n<div class="admin-bar visible-admin">\n  <div class="admin-bar-inner">\n    <div id="admin-bar-status"></div>\n    <div id="admin-bar-controls">\n      <a id="templates-refresh-btn" class="btn" href="#">\n        <i class="icon-refresh"></i> Check for updates\n      </a>\n      <a id="templates-add-btn" class="btn btn-success" href="#/settings">\n        <i class="icon-plus-sign"></i> Add template sources\n      </a>\n    </div>\n  </div>\n</div>\n';});
-
-define('text!templates/templates-list.handlebars',[],function () { return '<table class="table table-striped table-templates">\n  <thead>\n    <tr>\n      <th>Name</th>\n      <th>Source</th>\n      <th>Installed</th>\n      <th>Available</th>\n      <th class="actions">Actions</th>\n    </tr>\n  </thead>\n  <tbody>\n  </tbody>\n</table>\n';});
-
-define('text!templates/templates-row.handlebars',[],function () { return '<tr data-source="{{source}}" data-ddoc-id="{{ddoc_id}}">\n  <td>\n    <div class="name">\n      {{#if dashicon}}\n      <img class="icon" alt="Icon" src="{{dashicon}}" />\n      {{else}}\n      <img class="icon" alt="Icon" src="img/icons/default_22.png" />\n      {{/if}}\n      {{ddoc_id}}\n    </div>\n  </td>\n  <td class="source" style="color: #999">\n    {{source}}\n  </td>\n  <td>\n    {{#if installed.dashboard.version}}\n      {{installed.dashboard.version}}\n    {{else}}\n      --\n    {{/if}}\n  </td>\n  <td>\n    {{remote.dashboard.version}}\n  </td>\n  <td class="actions">\n    {{#if installed}}\n      <a class="btn template-uninstall-btn"><i class="icon-trash"></i> Uninstall</a>\n      <a class="btn template-create-btn"><i class="icon-briefcase"></i> Create Project</a>\n    {{else}}\n      <a class="btn template-install-btn">\n        <i class="icon-download"></i> Install\n      </a>\n    {{/if}}\n  </td>\n</tr>\n';});
-
-define('text!templates/templates-create-project-modal.handlebars',[],function () { return '<div class="modal hide" id="create-project-modal">\n  <div class="modal-header">\n    <button type="button" class="close" data-dismiss="modal">×</button>\n    <h3>Create project</h3>\n  </div>\n  <div class="modal-body">\n    <form id="create-project-form" class="form-horizontal">\n      <fieldset>\n        <div class="control-group">\n          <label class="control-label" for="input-project-template">Template</label>\n          <div class="controls">\n            <span class="template">{{{template_td}}}</span>\n          </div>\n        </div>\n        <div class="control-group">\n          <label class="control-label" for="input-project-name">Name</label>\n          <div class="controls">\n            <input type="text" class="input-xlarge" id="input-project-name"\n                   value="{{db_name}}">\n          </div>\n        </div>\n      </fieldset>\n    </form>\n    <div class="progress">\n      <div class="bar"></div>\n    </div>\n  </div>\n  <div class="modal-footer">\n    <a href="#" class="btn" data-dismiss="modal">Close</a>\n    <a href="#" class="btn btn-primary">Create</a>\n  </div>\n</div>\n';});
-
-define('text!templates/templates-done-project-modal.handlebars',[],function () { return '<div class="modal hide" id="done-project-modal">\n  <div class="modal-header">\n    <button type="button" class="close" data-dismiss="modal">×</button>\n    <h3>Done!</h3>\n  </div>\n  <div class="modal-body">\n    <a class="project-url" href="{{url}}">{{url}}</a>\n  </div>\n  <div class="modal-footer">\n    <a href="#" class="btn" data-dismiss="modal">Close</a>\n    <a href="{{url}}" class="btn btn-primary">Open</a>\n  </div>\n</div>\n';});
 
 /* =========================================================
  * bootstrap-modal.js v2.0.3
@@ -20120,641 +20708,57 @@ define('text!templates/templates-done-project-modal.handlebars',[],function () {
 }(window.jQuery);
 define("bootstrap/js/bootstrap-modal", function(){});
 
-define('lib/views/templates',[
-    'require',
-    'jquery',
-    'couchr',
-    '../templates',
-    '../projects',
-    'hbt!../../templates/templates',
-    'hbt!../../templates/templates-list',
-    'hbt!../../templates/templates-row',
-    'hbt!../../templates/templates-create-project-modal',
-    'hbt!../../templates/templates-done-project-modal',
-    'hbt!../../templates/navigation',
-    'bootstrap/js/bootstrap-button',
-    'bootstrap/js/bootstrap-modal'
-],
-function (require, $) {
-
-    var tmpl = require('hbt!../../templates/templates'),
-        templates = require('../templates'),
-        projects = require('../projects'),
-        couchr = require('couchr');
-
-
-    function clearModals() {
-        $('.modal').modal('hide').remove();
-    }
-
-    function showDoneModal(url) {
-        clearModals();
-        var tmpl = require('hbt!../../templates/templates-done-project-modal');
-
-        var m = $(tmpl({ url: url }));
-        m.appendTo(document.body);
-        m.modal('show');
-
-        // so if you press enter you go to desired url
-        $('.btn-primary', m).focus();
-    };
-
-    function showProjectModal(ddoc_id, db_name) {
-        clearModals();
-
-        var tmpl = require(
-            'hbt!../../templates/templates-create-project-modal'
-        );
-        var m = $(tmpl({
-            ddoc_id: ddoc_id,
-            db_name: db_name || '',
-            template_td: $('tr[data-ddoc-id=' + ddoc_id + '] .name').html()
-        }));
-        m.appendTo(document.body);
-
-        $('.alert', m).remove();
-        $('.progress', m).hide();
-        $('.progress .bar', m).css({width: 0});
-        $('.btn-primary', m).button('reset');
-        $('#create-project-form', m).show();
-
-        m.modal('show');
-
-        $('#input-project-name', m).focus();
-
-        $('.btn-primary', m).click(function (ev) {
-            ev.preventDefault();
-            $('form', m).submit();
-            return false;
-        });
-
-        $('form', m).submit(function (ev) {
-            ev.preventDefault();
-            var name = $('#input-project-name', m).val();
-
-            $('.btn-primary', m).button('loading');
-            $('.progress', m).show();
-            $('#create-project-form', m).hide();
-
-            var bar = $('.progress .bar', m);
-            var creator = projects.create(name, ddoc_id, function (err, doc) {
-                if (err) {
-                    showProjectModal(ddoc_id, name);
-                    $('.modal-body', m).prepend(
-                        '<div class="alert alert-error">' +
-                            '<button class="close" data-dismiss="alert">' +
-                                '×' +
-                            '</button>' +
-                            '<strong>Error</strong> ' +
-                            (err.message || err.toString()) +
-                        '</div>'
-                    );
-                    return;
-                }
-                var fn = function () {
-                    $('.btn-primary', m).button('reset');
-                    $(m).modal('hide');
-                    showDoneModal(doc.url);
-                };
-                bar.one('transitionEnd', fn);
-                bar.one('oTransitionEnd', fn);       // opera
-                bar.one('msTransitionEnd', fn);      // ie
-                bar.one('transitionend', fn);        // mozilla
-                bar.one('webkitTransitionEnd', fn);  // webkit
-            });
-            creator.on('progress', function (value) {
-                bar.css({width: value + '%'});
-            });
-
-            return false;
-        });
-    }
-
-    function renderRow(doc) {
-        var tr = $(require('hbt!../../templates/templates-row')(doc));
-
-        $('.template-install-btn', tr).click(function (ev) {
-            ev.preventDefault();
-            var that = this;
-
-            var progress = $('<div class="progress" />');
-            var bar = $('<div class="bar" />').appendTo(progress);
-            var btn = $(this).replaceWith(progress);
-
-            var installer = templates.install(
-                doc.source, doc.ddoc_id, function (err, tdoc) {
-                    if (err) {
-                        // TODO: show error message to user
-                        return console.error(err);
-                    }
-                    var fn = function () {
-                        progress.replaceWith(btn);
-                        // redraw row
-                        tr.replaceWith(renderRow(tdoc));
-                    };
-                    bar.one('transitionEnd', fn);
-                    bar.one('oTransitionEnd', fn);       // opera
-                    bar.one('msTransitionEnd', fn);      // ie
-                    bar.one('transitionend', fn);        // mozilla
-                    bar.one('webkitTransitionEnd', fn);  // webkit
-                }
-            );
-            installer.on('progress', function (value) {
-                bar.css({width: value + '%'});
-            });
-            return false;
-        });
-
-        $('.template-uninstall-btn', tr).click(function (ev) {
-            ev.preventDefault();
-            var that = this;
-
-            $(that).button('loading');
-            templates.uninstall(doc.ddoc_id, function (err, tdoc) {
-                if (err) {
-                    // TODO: show error message to user
-                    return console.error(err);
-                }
-                //$(that).button('reset');
-                // redraw row
-                tr.replaceWith(renderRow(tdoc));
-            });
-            return false;
-        });
-
-        $('.template-create-btn', tr).click(function (ev) {
-            ev.preventDefault();
-            showProjectModal(doc.ddoc_id);
-            return false;
-        });
-
-        return tr;
-    }
-
-    function renderList() {
-        // fetch template list from couchdb
-        var vurl = 'api/_design/dashboard/_view/templates';
-        couchr.get(vurl, {include_docs: true}, function (err, data) {
-            if (err) {
-                // TODO: show error message to user
-                return console.error(err);
-            }
-            var rows = _.map(data.rows, function (r) {
-                return renderRow(r.doc);
-            });
-            $('#templates-list').html(
-                require('hbt!../../templates/templates-list')({})
-            );
-            _.forEach(rows, function (tr) {
-                $('#templates-list tbody').append(tr);
-            });
-        });
-    }
-
-    return function () {
-        $('#content').html(tmpl({}));
-
-        $('#navigation').html(
-            require('hbt!../../templates/navigation')({
-                templates: true
-            })
-        );
-
-        renderList();
-
-        $('#templates-refresh-btn').click(function (ev) {
-            ev.preventDefault();
-            var that = this;
-
-            $('#templates-list').html('');
-            $(this).button('loading');
-
-            var updator = templates.update(function (err) {
-                if (err) {
-                    // TODO: show error message to user
-                    return console.error(err);
-                }
-                var bar = $('#admin-bar-status .progress .bar');
-                var fn = function () {
-                    $('#admin-bar-status .progress').fadeOut(function () {
-                        renderList();
-                    });
-                    $(that).button('reset');
-                };
-                bar.one('transitionEnd', fn);
-                bar.one('oTransitionEnd', fn);       // opera
-                bar.one('msTransitionEnd', fn);      // ie
-                bar.one('transitionend', fn);        // mozilla
-                bar.one('webkitTransitionEnd', fn);  // webkit
-            });
-            $('#admin-bar-status').html(
-                '<div class="progress"><div class="bar"></div></div>'
-            );
-            updator.on('progress', function (value) {
-                $('#admin-bar-status .progress .bar').css({
-                    width: value + '%'
-                });
-            });
-            return false;
-        });
-    };
-
-});
-
-define('text!templates/settings.handlebars',[],function () { return '<div id="main">\n  <div class="container-fluid">\n\n    <form id="settings-form" class="form-horizontal">\n\n      <fieldset>\n        <legend>Template sources</legend>\n        <div class="control-group">\n          <label class="control-label" for="template_sources">Source URLs</label>\n          <div class="controls">\n            <textarea class="input-xlarge" id="template_sources" rows="5">{{#each settings.templates.sources}}{{this}}\n{{/each}}</textarea>\n            <p class="help-block">Enter one full URL per line (including http://)</p>\n          </div>\n        </div>\n      </fieldset>\n\n      <fieldset>\n        <legend>Projects list</legend>\n        <div class="control-group">\n          <label class="control-label" for="projects_show_no_templates">No templates</label>\n          <div class="controls">\n            <label class="checkbox" for="projects_show_no_templates">\n              <input type="checkbox" id="projects_show_no_templates" {{#if settings.projects.show_no_templates}}checked="checked" {{/if}}/>\n              Include projects with no template (opens database in Futon)\n            </label>\n          </div>\n        </div>\n        <div class="control-group">\n          <label class="control-label" for="projects_show_unknown_templates">Unknown templates</label>\n          <div class="controls">\n            <label class="checkbox" for="projects_show_unknown_templates">\n              <input type="checkbox" id="projects_show_unknown_templates" {{#if settings.projects.show_unknown_templates}}checked="checked" {{/if}}/>\n              Include projects with unknown templates in the list\n            </label>\n          </div>\n        </div>\n      </fieldset>\n\n    </form>\n\n  </div>\n</div>\n\n<div class="admin-bar visible-admin">\n  <div class="admin-bar-inner">\n    <div id="admin-bar-status"></div>\n    <div id="admin-bar-controls">\n      <a id="settings-save-btn" class="btn btn-primary" href="#">\n        <i class="icon-save"></i> Save changes\n      </a>\n    </div>\n  </div>\n</div>\n';});
-
-define('lib/views/settings',[
-    'require',
-    'jquery',
-    'lodash',
-    '../settings',
-    'hbt!../../templates/settings',
-    'hbt!../../templates/navigation',
-    'bootstrap/js/bootstrap-button'
-],
-function (require, $, _) {
-
-    var tmpl = require('hbt!../../templates/settings'),
-        settings = require('../settings');
-
-
-    return function () {
-        $('#content').html(tmpl({
-            settings: settings.get()
-        }));
-
-        $('#settings-form').submit(function () {
-            $('#settings-save-btn').button('loading');
-
-            var cfg = {templates: {}, projects: {}};
-            cfg.templates.sources = _.compact(
-                $('#template_sources').val().split('\n')
-            );
-
-            var no_templates = $('#projects_show_no_templates').is(':checked');
-            cfg.projects.show_no_templates = no_templates;
-
-            var unknown = $('#projects_show_unknown_templates').is(':checked');
-            cfg.projects.show_unknown_templates = unknown;
-
-            settings.update(cfg, function (err) {
-                if (err) {
-                    // TODO: add message to admin status bar
-                    console.error(err);
-                    return;
-                }
-                $('#settings-save-btn').button('reset');
-            });
-            return false;
-        });
-
-        $('#settings-save-btn').click(function (ev) {
-            ev.preventDefault();
-            $('#settings-form').submit();
-            return false;
-        });
-
-        $('#navigation').html(
-            require('hbt!../../templates/navigation')({
-                settings: true
-            })
-        );
-    };
-
-});
-
-define('text!templates/sessionmenu.handlebars',[],function () { return '{{#if userCtx.name}}\n\n  <ul class="nav hidden-phone">\n    <li><a href="#/account">{{userCtx.name}}</a></li>\n    <li class="divider-vertical"></li>\n    <li><a class="signout-link" href="#">\n      <i class="icon-signout"></i> Sign out\n    </a></li>\n  </ul>\n\n  <ul class="nav visible-phone">\n    <li class="dropdown">\n      <a href="#" class="dropdown-toggle" data-toggle="dropdown">\n        <i class="icon-user"></i> <b class="caret"></b>\n      </a>\n      <ul class="dropdown-menu">\n        <li><a href="#/account">{{userCtx.name}}</a></li>\n        <li><a class="signout-link" href="#">\n          <i class="icon-signout"></i> Sign out\n        </a></li>\n      </ul>\n    </li>\n  </ul>\n\n{{else}}\n\n  <ul class="nav hidden-phone">\n    <li><a href="#/signup">Create Account</a></li>\n    <li><a class="signin-link" href="#/login">\n      <i class="icon-signin"></i> Sign in\n    </a></li>\n  </ul>\n\n  <ul class="nav visible-phone">\n    <li class="dropdown">\n      <a href="#" class="dropdown-toggle" data-toggle="dropdown">\n        <i class="icon-user"></i> <b class="caret"></b>\n      </a>\n      <ul class="dropdown-menu">\n        <li><a href="#/signup">Create account</a></li>\n        <li><a class="signin-link">\n          <i class="icon-signin"></i> Sign in\n        </a></li>\n      </ul>\n    </li>\n  </ul>\n\n{{/if}}\n';});
-
-define('lib/views/sessionmenu',[
-    'require',
-    'jquery',
-    '../session',
-    'hbt!../../templates/sessionmenu'
-],
-function (require, $) {
-
-    var session = require('../session');
-
-
-    return function (data) {
-        $('#session').html(
-            require('hbt!../../templates/sessionmenu')(data)
-        );
-        $('#session .signout-link').click(function (ev) {
-            ev.preventDefault();
-            session.logout();
-            return false;
-        });
-    };
-
-});
-
-define('text!templates/login.handlebars',[],function () { return '<div class="center-form">\n  <form id="login-form" class="form-horizontal">\n    <fieldset>\n      <legend>Existing user</legend>\n      <div class="control-group">\n        <label class="control-label" for="login_username">Username</label>\n        <div class="controls">\n          <input type="text" class="input-xlarge" id="login_username">\n          <p class="help-inline"></p>\n        </div>\n      </div>\n      <div class="control-group">\n        <label class="control-label" for="login_password">Password</label>\n        <div class="controls">\n          <input type="password" class="input-medium" id="login_password">\n          <p class="help-inline"></p>\n        </div>\n      </div>\n      <div class="form-actions">\n        <button id="login_submit" type="submit" data-loading-text="Please wait..." class="btn btn-primary">Login</button>\n        <a style="position: relative; top: 2px; left: 10px;" href="#/signup">Don\'t have an account?</a>\n      </div>\n    </fieldset>\n  </form>\n</div>\n';});
-
-define('lib/views/login',[
-    'require',
-    'jquery',
-    '../session',
-    'hbt!../../templates/login',
-    'hbt!../../templates/navigation'
-],
-function (require, $) {
-
-    var session = require('../session');
-
-
-    function showError(err) {
-        $('#login-form fieldset').prepend(
-          '<div class="alert alert-error">' +
-            '<a class="close" data-dismiss="alert">' +
-              '&times;' +
-            '</a>' +
-            '<strong>Error</strong> ' +
-            (err.message || err.toString()) +
-          '</div>'
-        );
-    }
-
-
-    return function (next) {
-        var username, password;
-
-        var signup_form = $('#signup-form');
-        if (signup_form.length) {
-            username = $('#signup_username', signup_form).val();
-            password = $('#signup_password', signup_form).val();
-        }
-        $('#content').html(
-            require('hbt!../../templates/login')({})
-        );
-        $('#navigation').html(
-            require('hbt!../../templates/navigation')({})
-        );
-
-        if (username) {
-            $('#login_username').val(username);
-        }
-        if (password) {
-            $('#login_password').val(password);
-        }
-
-        $('#login_username').focus();
-
-        $('#login-form').submit(function (ev) {
-            ev.preventDefault();
-
-            var username = $('#login_username').val();
-            var password = $('#login_password').val();
-
-            // clear validation/error messages
-            $('.error', this).removeClass('error');
-            $('.help-inline', this).text('');
-            $('.alert', this).remove();
-
-            if (!username) {
-                var cg = $('#login_username').parents('.control-group');
-                cg.addClass('error');
-                $('.help-inline', cg).text('Required');
-            }
-            if (!password) {
-                var cg = $('#login_password').parents('.control-group');
-                cg.addClass('error');
-                $('.help-inline', cg).text('Required');
-            }
-            if (!username || !password) {
-                return;
-            }
-
-            $('#login_submit').button('loading');
-
-            session.login(username, password, function (err, res) {
-                if (err) {
-                    $('#login_submit').button('reset');
-                    if (err.status === 0) {
-                        showError(new Error(
-                            'Request timed out, please check your connection.'
-                        ));
-                    }
-                    else {
-                        showError(err);
-                    }
-                    return;
-                }
-                window.location = next ? decodeURIComponent(next): '#/';
-            });
-
-            return false;
-        });
-    };
-
-});
-
-define('lib/users',[
-    'exports',
-    'couchr',
-    'lodash'
-],
-function (exports, couchr, _) {
-
-    exports.authDB = function (callback) {
-        couchr.get('/_session', function (err, resp) {
-            if (err) {
-                return callback(err);
-            }
-            return callback(null, resp.info.authentication_db);
-        });
-    };
-
-    exports.create = function (name, password, /*opt*/prop, callback) {
-        if (!callback) {
-            callback = prop;
-            prop = {};
-        }
-        var doc = _.extend({
-            _id: 'org.couchdb.user:' + name,
-            type: 'user',
-            name: name,
-            password: password,
-            roles: []
-        }, prop);
-
-        exports.authDB(function (err, db_name) {
-            if (err) {
-                return callback(err);
-            }
-            var url = '/' + db_name + '/' + encodeURIComponent(doc._id);
-            couchr.put(url, doc, callback);
-        });
-    };
-
-    // TODO: exports.makeAdmin (posts to /_config/admins)
-
-});
-
-define('text!templates/signup.handlebars',[],function () { return '<div class="center-form">\n  <form id="signup-form" class="form-horizontal">\n    <fieldset>\n      <legend>New user</legend>\n      <div class="control-group">\n        <label class="control-label" for="signup_username">Username</label>\n        <div class="controls">\n          <input type="text" class="input-xlarge" id="signup_username">\n          <p class="help-inline"></p>\n        </div>\n      </div>\n      <div class="control-group">\n        <label class="control-label" for="signup_email">Email</label>\n        <div class="controls">\n          <input type="text" class="input-xlarge" id="signup_email">\n          <p class="help-inline"></p>\n        </div>\n      </div>\n      <div class="control-group">\n        <label class="control-label" for="signup_password">Password</label>\n        <div class="controls">\n          <input type="password" class="input-medium" id="signup_password">\n          <p class="help-inline"></p>\n        </div>\n      </div>\n      <div class="form-actions">\n        <button id="signup_submit" type="submit" data-loading-text="Please wait..." class="btn btn-primary">Create my account</button>\n        <a style="position: relative; top: 2px; left: 10px;" href="#/login">Already have an account?</a>\n      </div>\n    </fieldset>\n  </form>\n</div>\n';});
-
-define('lib/views/signup',[
-    'require',
-    'jquery',
-    'async',
-    '../session',
-    '../users',
-    'hbt!../../templates/signup',
-    'hbt!../../templates/navigation'
-],
-function (require, $) {
-
-    var session = require('../session'),
-        users = require('../users'),
-        async = require('async');
-
-
-    function showError(err) {
-        $('#login-form fieldset').prepend(
-          '<div class="alert alert-error">' +
-            '<a class="close" data-dismiss="alert">' +
-              '&times;' +
-            '</a>' +
-            '<strong>Error</strong> ' +
-            (err.message || err.toString()) +
-          '</div>'
-        );
-    }
-
-
-    return function () {
-        var username, password;
-
-        var login_form = $('#login-form');
-        if (login_form.length) {
-            username = $('#login_username', login_form).val();
-            password = $('#login_password', login_form).val();
-        }
-        $('#content').html(
-            require('hbt!../../templates/signup')({})
-        );
-        $('#navigation').html(
-            require('hbt!../../templates/navigation')({})
-        );
-
-        if (username) {
-            $('#signup_username').val(username);
-        }
-        if (password) {
-            $('#signup_password').val(password);
-        }
-
-        $('#signup_username').focus();
-
-        $('#signup-form').submit(function (ev) {
-            ev.preventDefault();
-
-            var email = $('#signup_email').val();
-            var username = $('#signup_username').val();
-            var password = $('#signup_password').val();
-
-            // clear validation/error messages
-            $('.error', this).removeClass('error');
-            $('.help-inline', this).text('');
-            $('.alert', this).remove();
-
-            if (!username) {
-                var cg = $('#signup_username').parents('.control-group');
-                cg.addClass('error');
-                $('.help-inline', cg).text('Required');
-            }
-            if (!email) {
-                var cg = $('#signup_email').parents('.control-group');
-                cg.addClass('error');
-                $('.help-inline', cg).text('Required');
-            }
-            if (!password) {
-                var cg = $('#signup_password').parents('.control-group');
-                cg.addClass('error');
-                $('.help-inline', cg).text('Required');
-            }
-            if (!email || !username || !password) {
-                return;
-            }
-
-            $('#signup_submit').button('loading');
-
-            async.series([
-                session.logout,
-                async.apply(users.create, username, password, {email: email}),
-                async.apply(session.login, username, password)
-            ],
-            function (err) {
-                if (err) {
-                    // TODO: roll-back user creation ?
-
-                    $('#signup_submit').button('reset');
-                    if (err.status === 0) {
-                        showError(new Error(
-                            'Request timed out, please check your connection.'
-                        ));
-                    }
-                    else if (err.status === 409 || err.status === 404) {
-                        showError(new Error('User already exists'));
-                    }
-                    else {
-                        showError(err);
-                    }
-                    return;
-                }
-                window.location = '#/';
-            });
-
-            return false;
-        });
-
-    };
-
-});
-
 define('lib/app',[
     'exports',
     'require',
     'lodash',
+    'couchr',
     'director',
+    './remote/projects',
+    './remote/settings',
+    './remote/session',
     './views/projects',
     './views/templates',
     './views/settings',
     './views/sessionmenu',
     './views/login',
     './views/signup',
-    './projects',
-    './session'
+    'hbt!../templates/navigation',
+    'bootstrap/js/bootstrap-button',
+    'bootstrap/js/bootstrap-modal'
 ],
 function (exports, require, _) {
 
-    var director = require('director'),
-        projects = require('./projects'),
-        settings = require('./settings'),
-        session = require('./session');
+    var projects = require('./remote/projects'),
+        settings = require('./remote/settings'),
+        session = require('./remote/session'),
+        director = require('director'),
+        couchr = require('couchr');
 
 
-    exports.routes = {
-        '/':                require('./views/projects'),
-        '/templates':       require('./views/templates'),
-        '/settings':        require('./views/settings'),
-        '/login':           require('./views/login'),
-        '/login/:next':     require('./views/login'),
-        '/signup':          require('./views/signup')
-    };
 
-    exports.init = function () {
-        var router = new director.Router(exports.routes);
+    exports.$init = function () {
+        var router = new director.Router({
+            '/': {
+                on: exports.$projectsPage,
+                after: exports.$cleanupProjectsPage
+            },
+            '/templates':       exports.$templatesPage,
+            '/settings':        exports.$settingsPage,
+            '/login':           exports.$loginPage,
+            '/login/:next':     exports.$loginPage,
+            '/signup':          exports.$signupPage
+        });
         router.init();
 
         if (!window.location.hash || window.location.hash === '#') {
             window.location = '#/';
             $(window).trigger('hashchange');
         }
-        projects.saveLocal();
-        settings.saveLocal();
+        projects.$saveLocal();
+        settings.$saveLocal();
 
-        session.info();
+        session.$info();
         session.on('change', function (data) {
             if (_.include(data.userCtx.roles, '_admin')) {
                 $(document.body).addClass('is-admin');
@@ -20762,7 +20766,108 @@ function (exports, require, _) {
             else {
                 $(document.body).removeClass('is-admin');
             }
-            require('./views/sessionmenu')(data);
+            $('#session').html(
+                require('./views/sessionmenu').render(data)
+            );
+        });
+    };
+
+
+    exports.$loginPage = function (next) {
+        var username, password;
+        var s_form = $('#signup-form');
+        if (s_form.length) {
+            username = $('#signup_username', s_form).val();
+            password = $('#signup_password', s_form).val();
+        }
+        $('#navigation').html(
+            require('hbt!../templates/navigation')({})
+        );
+        $('#content').html(
+            require('./views/login').render(next, username, password)
+        );
+        $('#login_username').focus();
+    };
+
+
+    var $projectsPageSessionHandler = null;
+    exports.$projectsPage = function () {
+        var projects_view = require('./views/projects');
+
+        session.$infoCached(function (err, info) {
+            var cfg = settings.$get().projects;
+            var ps = projects.$get();
+
+            $('#navigation').html(
+                require('hbt!../templates/navigation')({
+                    projects: true
+                })
+            );
+            $('#content').html(
+                projects_view.render(cfg, info.userCtx, ps)
+            );
+            $projectsPageSessionHandler = function (info) {
+                $('#content').html(
+                    projects_view.render(cfg, info.userCtx, ps)
+                );
+            };
+            session.on('change', $projectsPageSessionHandler);
+        });
+    };
+    exports.$cleanupProjectsPage = function () {
+        if ($projectsPageSessionHandler !== null) {
+            session.removeListener('change', $projectsPageSessionHandler);
+        }
+    };
+
+
+    exports.$settingsPage = function () {
+        var cfg = settings.$get();
+        $('#content').html( require('./views/settings').render(cfg) );
+        $('#navigation').html(
+            require('hbt!../templates/navigation')({
+                settings: true
+            })
+        );
+    };
+
+
+    exports.$signupPage = function () {
+        var username, password;
+        var login_form = $('#login-form');
+
+        if (login_form.length) {
+            username = $('#login_username', login_form).val();
+            password = $('#login_password', login_form).val();
+        }
+        $('#content').html(
+            require('./views/signup').render(username, password)
+        );
+        $('#navigation').html(
+            require('hbt!../templates/navigation')({})
+        );
+        $('#signup_username').focus();
+    };
+
+
+    exports.$templatesPage = function () {
+        var templates_view = require('./views/templates');
+
+        $('#content').html( templates_view.render() );
+        $('#navigation').html(
+            require('hbt!../templates/navigation')({
+                templates: true
+            })
+        );
+        // fetch template list from couchdb
+        var vurl = 'api/_design/dashboard/_view/templates';
+        couchr.get(vurl, {include_docs: true}, function (err, data) {
+            if (err) {
+                // TODO: show error message to user
+                return console.error(err);
+            }
+            var el = templates_view.renderList(data);
+            $('#templates-list').html(el);
         });
     };
 

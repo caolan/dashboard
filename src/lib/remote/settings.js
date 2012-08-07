@@ -2,15 +2,15 @@ define([
     'exports',
     'require',
     'lodash',
-    '../data/settings',
     'couchr',
-    './env'
+    '../../data/settings',
+    '../local/env'
 ],
 function (exports, require, _) {
 
     var couchr = require('couchr'),
-        DATA = require('../data/settings'),
-        env = require('./env');
+        DATA = require('../../data/settings'),
+        env = require('../local/env');
 
 
     exports.DEFAULTS = {
@@ -23,7 +23,7 @@ function (exports, require, _) {
         }
     };
 
-    exports.update = function (cfg, callback) {
+    exports.$update = function (cfg, callback) {
         // TODO: should this be a deep extend?
         var doc = _.extend(exports.DEFAULTS, DATA || {}, cfg);
         couchr.put('api/settings', doc, function (err, res) {
@@ -35,12 +35,12 @@ function (exports, require, _) {
             $.get('data/settings.js', function (data) {
                 // cache bust
             });
-            exports.saveLocal();
+            exports.$saveLocal();
             callback();
         });
     };
 
-    exports.get = function () {
+    exports.$get = function () {
         if (!DATA) {
             return exports.DEFAULTS;
         }
@@ -48,7 +48,7 @@ function (exports, require, _) {
         return _.extend(exports.DEFAULTS, DATA);
     };
 
-    exports.saveLocal = function () {
+    exports.$saveLocal = function () {
         if (env.hasStorage) {
             localStorage.setItem('dashboard-settings', JSON.stringify(DATA));
         }

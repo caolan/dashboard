@@ -5,7 +5,7 @@ define([
 ],
 function (exports, couchr, _) {
 
-    exports.authDB = function (callback) {
+    exports.$authDB = function (callback) {
         couchr.get('/_session', function (err, resp) {
             if (err) {
                 return callback(err);
@@ -14,7 +14,7 @@ function (exports, couchr, _) {
         });
     };
 
-    exports.create = function (name, password, /*opt*/prop, callback) {
+    exports.$create = function (name, password, /*opt*/prop, callback) {
         if (!callback) {
             callback = prop;
             prop = {};
@@ -27,7 +27,7 @@ function (exports, couchr, _) {
             roles: []
         }, prop);
 
-        exports.authDB(function (err, db_name) {
+        exports.$authDB(function (err, db_name) {
             if (err) {
                 return callback(err);
             }

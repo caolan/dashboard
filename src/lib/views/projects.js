@@ -1,76 +1,58 @@
 define([
+    'exports',
     'require',
     'jquery',
     'lodash',
-    '../projects',
-    '../settings',
-    '../session',
-    'hbt!../../templates/projects',
-    'hbt!../../templates/navigation',
-    'bootstrap/js/bootstrap-button'
+    '../remote/projects',
+    '../remote/settings',
+    '../remote/session',
+    '../collections/projects',
+    'hbt!../../templates/projects'
 ],
-function (require, $, _) {
+function (exports, require, $, _) {
 
     var tmpl = require('hbt!../../templates/projects'),
-        projects = require('../projects'),
-        settings = require('../settings'),
-        session = require('../session');
+        projects = require('../remote/projects'),
+        settings = require('../remote/settings'),
+        session = require('../remote/session'),
+        p_collection = require('../collections/projects');
 
 
-    function getProjectList() {
-        var plist = projects.get();
-        var cfg = settings.get().projects;
-
+    exports.filterProjects = function (cfg, userCtx, ps) {
+        // filter projects based on preferences in settings object
         if (!cfg.show_no_templates) {
-            plist = _.reject(plist, function (p) {
-                return p.unknown_root;
-            });
+            ps = _.reject(ps, p_collection.isMissingTemplate);
         }
         if (!cfg.show_unknown_templates) {
-            plist = _.reject(plist, function (p) {
-                return !p.unknown_root && !p.dashboard;
-            });
+            ps = _.reject(ps, p_collection.hasUnknownTemplate);
         }
-        return plist;
-    }
-
-
-    function renderProjects(ps, userCtx) {
         // filter out projects the user does not have permission to access
-        ps = _.filter(ps, _.partial(projects.isMember, userCtx));
+        var r = _.filter(ps, _.partial(p_collection.isMember, userCtx));
+        return r;
+    };
 
-        // set is_admin on projects user is admin of
+
+    exports.render = function (cfg, userCtx, ps) {
+        ps = exports.filterProjects(cfg, userCtx, ps);
         ps = _.map(ps, function (p) {
-            p.is_admin = projects.isAdmin(userCtx, p);
+            p.is_admin = p_collection.isAdmin(userCtx, p);
             return p;
         });
-
-        // does user have admin access to any projects in the list?
-        var has_admin = _.any(ps, _.partial(projects.isAdmin, userCtx));
-
-        // render projects page
-        $('#content').html(tmpl({
-            has_any_admin: has_admin,
+        var el = $(tmpl({
+            // does user have admin access to any projects in the list?
+            has_any_admin: _.any(ps, _.partial(p_collection.isAdmin, userCtx)),
             projects: ps
         }));
-    }
-
-
-    return function () {
-        session.infoCached(function (err, info) {
-            renderProjects(getProjectList(), info.userCtx);
-            session.on('change', function (info) {
-                renderProjects(getProjectList(), info.userCtx);
-            });
-        });
-
-        $('#navigation').html(
-            require('hbt!../../templates/navigation')({
-                projects: true
-            })
+        // bind event handler to refresh button
+        $('#projects-refresh-btn', el).click(
+            exports.$doRefresh(cfg, userCtx, ps)
         );
+        return el;
+    };
 
-        $('#projects-refresh-btn').click(function (ev) {
+
+    exports.$doRefresh = function (cfg, userCtx, ps) {
+        return function (ev) {
             ev.preventDefault();
             var that = this;
 
@@ -78,7 +60,7 @@ function (require, $, _) {
             $('#admin-bar-status').html('');
             $('#main').html('');
 
-            var refresher = projects.refresh(function (err) {
+            var refresher = projects.$refresh(function (err) {
                 if (err) {
                     // TODO: add error alert box to status area
                     return console.error(err);
@@ -87,15 +69,11 @@ function (require, $, _) {
                 var bar = $('#admin-bar-status .progress .bar');
                 var fn = function () {
                     $('#admin-bar-status .progress').fadeOut(function () {
-                        session.infoCached(function (err, info) {
-                            if (err) {
-                                return console.error(err);
-                            }
-                            renderProjects(getProjectList(), info.userCtx)
-                        });
+                        $('#content').html( exports.render(cfg, userCtx, ps));
                     });
                     $(that).button('reset');
                 };
+                // TODO: support browsers that don't provide transitionEnd!
                 bar.one('transitionEnd', fn);
                 bar.one('oTransitionEnd', fn);       // opera
                 bar.one('msTransitionEnd', fn);      // ie
@@ -111,9 +89,8 @@ function (require, $, _) {
                     width: value + '%'
                 });
             });
-
             return false;
-        });
+        };
     };
 
 });

@@ -1,98 +1,63 @@
 define([
+    'exports',
     'require',
     'jquery',
+    'lodash',
     'couchr',
-    '../templates',
-    '../projects',
+    './utils',
+    '../remote/templates',
+    '../remote/projects',
     'hbt!../../templates/templates',
     'hbt!../../templates/templates-list',
     'hbt!../../templates/templates-row',
     'hbt!../../templates/templates-create-project-modal',
-    'hbt!../../templates/templates-done-project-modal',
-    'hbt!../../templates/navigation',
-    'bootstrap/js/bootstrap-button',
-    'bootstrap/js/bootstrap-modal'
+    'hbt!../../templates/templates-project-progress-modal',
+    'hbt!../../templates/templates-done-project-modal'
 ],
-function (require, $) {
+function (exports, require, $, _) {
 
     var tmpl = require('hbt!../../templates/templates'),
-        templates = require('../templates'),
-        projects = require('../projects'),
+        templates = require('../remote/templates'),
+        projects = require('../remote/projects'),
+        vutils = require('./utils'),
         couchr = require('couchr');
 
 
-    function clearModals() {
-        $('.modal').modal('hide').remove();
-    }
+    exports.render = function () {
+        var el = $(tmpl({}));
+        $('#templates-refresh-btn', el).click( exports.$doRefresh );
+        return el;
+    };
 
-    function showDoneModal(url) {
-        clearModals();
+    exports.$showDoneModal = function (url) {
         var tmpl = require('hbt!../../templates/templates-done-project-modal');
-
-        var m = $(tmpl({ url: url }));
-        m.appendTo(document.body);
-        m.modal('show');
-
+        var m = vutils.$showModal(tmpl({ url: url }));
         // so if you press enter you go to desired url
         $('.btn-primary', m).focus();
     };
 
-    function showProjectModal(ddoc_id, db_name) {
-        clearModals();
-
+    exports.$showProgressModal = function () {
         var tmpl = require(
-            'hbt!../../templates/templates-create-project-modal'
+            'hbt!../../templates/templates-project-progress-modal'
         );
-        var m = $(tmpl({
-            ddoc_id: ddoc_id,
-            db_name: db_name || '',
-            template_td: $('tr[data-ddoc-id=' + ddoc_id + '] .name').html()
-        }));
-        m.appendTo(document.body);
+        vutils.$showModal(tmpl({}));
+    };
 
-        $('.alert', m).remove();
-        $('.progress', m).hide();
-        $('.progress .bar', m).css({width: 0});
-        $('.btn-primary', m).button('reset');
-        $('#create-project-form', m).show();
-
-        m.modal('show');
-
-        $('#input-project-name', m).focus();
-
-        $('.btn-primary', m).click(function (ev) {
-            ev.preventDefault();
-            $('form', m).submit();
-            return false;
-        });
-
-        $('form', m).submit(function (ev) {
+    exports.$submitCreateProject = function (ddoc_id) {
+        return function (ev) {
             ev.preventDefault();
             var name = $('#input-project-name', m).val();
-
-            $('.btn-primary', m).button('loading');
-            $('.progress', m).show();
-            $('#create-project-form', m).hide();
+            var m = exports.$showProgressModal();
 
             var bar = $('.progress .bar', m);
-            var creator = projects.create(name, ddoc_id, function (err, doc) {
+            var creator = projects.$create(name, ddoc_id, function (err, doc) {
                 if (err) {
-                    showProjectModal(ddoc_id, name);
-                    $('.modal-body', m).prepend(
-                        '<div class="alert alert-error">' +
-                            '<button class="close" data-dismiss="alert">' +
-                                '×' +
-                            '</button>' +
-                            '<strong>Error</strong> ' +
-                            (err.message || err.toString()) +
-                        '</div>'
-                    );
+                    exports.$showProjectModal(ddoc_id, name);
+                    vutils.showError($('.modal-body', m), err);
                     return;
                 }
                 var fn = function () {
-                    $('.btn-primary', m).button('reset');
-                    $(m).modal('hide');
-                    showDoneModal(doc.url);
+                    exports.$showDoneModal(doc.url);
                 };
                 bar.one('transitionEnd', fn);
                 bar.one('oTransitionEnd', fn);       // opera
@@ -103,15 +68,28 @@ function (require, $) {
             creator.on('progress', function (value) {
                 bar.css({width: value + '%'});
             });
-
             return false;
+        };
+    };
+
+    exports.$showProjectModal = function (ddoc_id, db_name) {
+        var tmpl = require(
+            'hbt!../../templates/templates-create-project-modal'
+        );
+        var html = tmpl({
+            ddoc_id: ddoc_id,
+            db_name: db_name || '',
+            template_td: $('tr[data-ddoc-id=' + ddoc_id + '] .name').html()
         });
-    }
+        var m = vutils.$showModal(html);
 
-    function renderRow(doc) {
-        var tr = $(require('hbt!../../templates/templates-row')(doc));
+        $('#input-project-name', m).focus();
+        $('.btn-primary', m).click( exports.$submitCreateProject(ddoc_id) );
+        $('form', m).submit( exports.$submitCreateProject(ddoc_id) );
+    };
 
-        $('.template-install-btn', tr).click(function (ev) {
+    exports.$doInstallTemplate = function (tr, doc) {
+        return function (ev) {
             ev.preventDefault();
             var that = this;
 
@@ -119,7 +97,7 @@ function (require, $) {
             var bar = $('<div class="bar" />').appendTo(progress);
             var btn = $(this).replaceWith(progress);
 
-            var installer = templates.install(
+            var installer = templates.$install(
                 doc.source, doc.ddoc_id, function (err, tdoc) {
                     if (err) {
                         // TODO: show error message to user
@@ -128,7 +106,7 @@ function (require, $) {
                     var fn = function () {
                         progress.replaceWith(btn);
                         // redraw row
-                        tr.replaceWith(renderRow(tdoc));
+                        tr.replaceWith( exports.renderRow(tdoc) );
                     };
                     bar.one('transitionEnd', fn);
                     bar.one('oTransitionEnd', fn);       // opera
@@ -141,100 +119,95 @@ function (require, $) {
                 bar.css({width: value + '%'});
             });
             return false;
-        });
+        };
+    };
 
-        $('.template-uninstall-btn', tr).click(function (ev) {
+    exports.$doUninstallTemplate = function (tr, doc) {
+        return function (ev) {
             ev.preventDefault();
             var that = this;
 
             $(that).button('loading');
-            templates.uninstall(doc.ddoc_id, function (err, tdoc) {
+            templates.$uninstall(doc.ddoc_id, function (err, tdoc) {
                 if (err) {
                     // TODO: show error message to user
                     return console.error(err);
                 }
                 //$(that).button('reset');
                 // redraw row
-                tr.replaceWith(renderRow(tdoc));
+                tr.replaceWith( exports.renderRow(tdoc) );
             });
             return false;
-        });
+        };
+    };
 
+    exports.renderRow = function (doc) {
+        var tr = $(require('hbt!../../templates/templates-row')(doc));
+        $('.template-install-btn', tr).click(
+            exports.$doInstallTemplate(tr, doc)
+        );
+        $('.template-uninstall-btn', tr).click(
+            exports.$doUninstallTemplate(tr, doc)
+        );
         $('.template-create-btn', tr).click(function (ev) {
             ev.preventDefault();
-            showProjectModal(doc.ddoc_id);
+            exports.$showProjectModal(doc.ddoc_id);
             return false;
         });
-
         return tr;
     }
 
-    function renderList() {
-        // fetch template list from couchdb
-        var vurl = 'api/_design/dashboard/_view/templates';
-        couchr.get(vurl, {include_docs: true}, function (err, data) {
+    exports.renderList = function (data) {
+        var el = $(require('hbt!../../templates/templates-list')({}));
+        _.each(data.rows, function (r) {
+            $('tbody', el).append( exports.renderRow(r.doc) );
+        });
+        return el;
+    };
+
+    exports.$doRefresh = function (ev) {
+        ev.preventDefault();
+        var that = this;
+
+        $('#templates-list').html('');
+        $(this).button('loading');
+
+        var updator = templates.$update(function (err) {
             if (err) {
                 // TODO: show error message to user
                 return console.error(err);
             }
-            var rows = _.map(data.rows, function (r) {
-                return renderRow(r.doc);
-            });
-            $('#templates-list').html(
-                require('hbt!../../templates/templates-list')({})
-            );
-            _.forEach(rows, function (tr) {
-                $('#templates-list tbody').append(tr);
-            });
-        });
-    }
-
-    return function () {
-        $('#content').html(tmpl({}));
-
-        $('#navigation').html(
-            require('hbt!../../templates/navigation')({
-                templates: true
-            })
-        );
-
-        renderList();
-
-        $('#templates-refresh-btn').click(function (ev) {
-            ev.preventDefault();
-            var that = this;
-
-            $('#templates-list').html('');
-            $(this).button('loading');
-
-            var updator = templates.update(function (err) {
-                if (err) {
-                    // TODO: show error message to user
-                    return console.error(err);
-                }
-                var bar = $('#admin-bar-status .progress .bar');
-                var fn = function () {
+            var bar = $('#admin-bar-status .progress .bar');
+            var fn = function () {
+                // fetch template list from couchdb
+                var vurl = 'api/_design/dashboard/_view/templates';
+                couchr.get(vurl, {include_docs: true}, function (err, data) {
+                    if (err) {
+                        // TODO: show error message to user
+                        return console.error(err);
+                    }
                     $('#admin-bar-status .progress').fadeOut(function () {
-                        renderList();
+                        var el = exports.renderList(data);
+                        $('#templates-list').html(el);
                     });
-                    $(that).button('reset');
-                };
-                bar.one('transitionEnd', fn);
-                bar.one('oTransitionEnd', fn);       // opera
-                bar.one('msTransitionEnd', fn);      // ie
-                bar.one('transitionend', fn);        // mozilla
-                bar.one('webkitTransitionEnd', fn);  // webkit
-            });
-            $('#admin-bar-status').html(
-                '<div class="progress"><div class="bar"></div></div>'
-            );
-            updator.on('progress', function (value) {
-                $('#admin-bar-status .progress .bar').css({
-                    width: value + '%'
                 });
-            });
-            return false;
+                $(that).button('reset');
+            };
+            bar.one('transitionEnd', fn);
+            bar.one('oTransitionEnd', fn);       // opera
+            bar.one('msTransitionEnd', fn);      // ie
+            bar.one('transitionend', fn);        // mozilla
+            bar.one('webkitTransitionEnd', fn);  // webkit
         });
+        $('#admin-bar-status').html(
+            '<div class="progress"><div class="bar"></div></div>'
+        );
+        updator.on('progress', function (value) {
+            $('#admin-bar-status .progress .bar').css({
+                width: value + '%'
+            });
+        });
+        return false;
     };
 
 });

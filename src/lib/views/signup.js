@@ -1,118 +1,92 @@
 define([
+    'exports',
     'require',
     'jquery',
     'async',
-    '../session',
-    '../users',
-    'hbt!../../templates/signup',
-    'hbt!../../templates/navigation'
+    './utils',
+    '../remote/session',
+    '../remote/users',
+    'hbt!../../templates/signup'
 ],
-function (require, $) {
+function (exports, require, $) {
 
-    var session = require('../session'),
-        users = require('../users'),
+    var tmpl = require('hbt!../../templates/signup'),
+        session = require('../remote/session'),
+        users = require('../remote/users'),
+        vutils = require('./utils'),
         async = require('async');
 
 
-    function showError(err) {
-        $('#login-form fieldset').prepend(
-          '<div class="alert alert-error">' +
-            '<a class="close" data-dismiss="alert">' +
-              '&times;' +
-            '</a>' +
-            '<strong>Error</strong> ' +
-            (err.message || err.toString()) +
-          '</div>'
+    exports.render = function (username, password) {
+        var el = $(tmpl({
+            username: username,
+            password: password
+        }));
+        $('#signup-form', el).submit( exports.$submitForm );
+        return el;
+    };
+
+    exports.getValidationErrors = function (form) {
+        var username_input  = $('#signup_username', form);
+        var email_input     = $('#signup_email', form);
+        var password_input  = $('#signup_password', form);
+
+        var errs = [];
+        var required_inputs = [username_input, email_input, password_input];
+
+        _.each(required_inputs, function (input) {
+            if (!input.val()) {
+                errs.push({
+                    input: input,
+                    control_group: input.parents('.control-group'),
+                    text: 'Required'
+                });
+            }
+        });
+        return errs;
+    };
+
+    exports.$submitForm = function (ev) {
+        ev.preventDefault();
+        var form = this;
+
+        // clear validation/error messages
+        vutils.clearValidation(form);
+
+        var errs = _.map(
+            exports.getValidationErrors(form),
+            vutils.showValidationError
         );
-    }
-
-
-    return function () {
-        var username, password;
-
-        var login_form = $('#login-form');
-        if (login_form.length) {
-            username = $('#login_username', login_form).val();
-            password = $('#login_password', login_form).val();
-        }
-        $('#content').html(
-            require('hbt!../../templates/signup')({})
-        );
-        $('#navigation').html(
-            require('hbt!../../templates/navigation')({})
-        );
-
-        if (username) {
-            $('#signup_username').val(username);
-        }
-        if (password) {
-            $('#signup_password').val(password);
-        }
-
-        $('#signup_username').focus();
-
-        $('#signup-form').submit(function (ev) {
-            ev.preventDefault();
-
-            var email = $('#signup_email').val();
-            var username = $('#signup_username').val();
-            var password = $('#signup_password').val();
-
-            // clear validation/error messages
-            $('.error', this).removeClass('error');
-            $('.help-inline', this).text('');
-            $('.alert', this).remove();
-
-            if (!username) {
-                var cg = $('#signup_username').parents('.control-group');
-                cg.addClass('error');
-                $('.help-inline', cg).text('Required');
-            }
-            if (!email) {
-                var cg = $('#signup_email').parents('.control-group');
-                cg.addClass('error');
-                $('.help-inline', cg).text('Required');
-            }
-            if (!password) {
-                var cg = $('#signup_password').parents('.control-group');
-                cg.addClass('error');
-                $('.help-inline', cg).text('Required');
-            }
-            if (!email || !username || !password) {
-                return;
-            }
-
-            $('#signup_submit').button('loading');
-
-            async.series([
-                session.logout,
-                async.apply(users.create, username, password, {email: email}),
-                async.apply(session.login, username, password)
-            ],
-            function (err) {
-                if (err) {
-                    // TODO: roll-back user creation ?
-
-                    $('#signup_submit').button('reset');
-                    if (err.status === 0) {
-                        showError(new Error(
-                            'Request timed out, please check your connection.'
-                        ));
-                    }
-                    else if (err.status === 409 || err.status === 404) {
-                        showError(new Error('User already exists'));
-                    }
-                    else {
-                        showError(err);
-                    }
-                    return;
-                }
-                window.location = '#/';
-            });
-
+        if (errs.length) {
             return false;
+        }
+
+        var v = vutils.serializeObject(form);
+        $('#signup_submit').button('loading');
+
+        async.series([
+            session.$logout,
+            async.apply(users.$create, v.name, v.password, {email: v.email}),
+            async.apply(session.$login, v.name, v.password)
+        ],
+        function (err) {
+            $('#signup_submit').button('reset');
+            if (err) {
+                // TODO: roll-back user creation ?
+                if (err.status === 409 || err.status === 404) {
+                    err = new Error('User already exists');
+                }
+                vutils.showError(
+                    $('fieldset', form),
+                    vutils.wrapNetworkError(err)
+                );
+            }
+            else {
+                window.location = '#/';
+            }
         });
 
+        return false;
     };
 
 });

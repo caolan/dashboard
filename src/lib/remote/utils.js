@@ -8,13 +8,7 @@ function (exports, require) {
     var couchr = require('couchr');
 
 
-    exports.logErrorsCallback = function (err) {
-        if (err) {
-            return console.error(err);
-        }
-    };
-
-    exports.imgToDataURI = function (src, callback) {
+    exports.$imgToDataURI = function (src, callback) {
         var img = new Image();
         img.src = src;
         img.onload = function () {
@@ -32,6 +26,33 @@ function (exports, require) {
             return callback(new Error('Loading of image aborted: ' + src));
         };
     };
+
+
+    exports.$getRev = function (db_name, id, callback) {
+        // test if revision is available locally
+        couchr.head('/' + db_name + '/' + id, function (err, data, req) {
+            if (err) {
+                if (err.status === 404) {
+                    // if status is 404 then the current head rev may be a
+                    // deleted doc - search changes feed if you need that info
+                    return callback(null, null);
+                }
+                return callback(err);
+            }
+            var etag = req.getResponseHeader('ETag') || '',
+                rev = etag.replace(/^"/, '').replace(/"$/, '');
+
+            return callback(null, rev || null);
+        });
+    };
+
+
+    exports.logErrorsCallback = function (err) {
+        if (err) {
+            return console.error(err);
+        }
+    };
+
 
     exports.getProjectURL = function (db_name, ddoc) {
         var id = ddoc._id;
@@ -52,26 +73,9 @@ function (exports, require) {
         return null;
     };
 
+
     exports.futonDatabaseURL = function (db_name) {
         return '/_utils/database.html?' + db_name;
-    };
-
-    exports.getRev = function (db_name, id, callback) {
-        // test if revision is available locally
-        couchr.head('/' + db_name + '/' + id, function (err, data, req) {
-            if (err) {
-                if (err.status === 404) {
-                    // if status is 404 then the current head rev may be a
-                    // deleted doc - search changes feed if you need that info
-                    return callback(null, null);
-                }
-                return callback(err);
-            }
-            var etag = req.getResponseHeader('ETag') || '',
-                rev = etag.replace(/^"/, '').replace(/"$/, '');
-
-            return callback(null, rev || null);
-        });
     };
 
 });

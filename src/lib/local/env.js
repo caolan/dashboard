@@ -1,7 +1,7 @@
 define(['exports'], function (exports) {
 
     // Feature test (from Modernizr)
-    exports.hasStorage = (function() {
+    exports.$hasStorage = (function() {
         try {
             localStorage.setItem('dashboard-test', 'dashboard-test');
             localStorage.removeItem('dashboard-test');
