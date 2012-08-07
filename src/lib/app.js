@@ -15,7 +15,8 @@ define([
     './views/signup',
     'hbt!../templates/navigation',
     'bootstrap/js/bootstrap-button',
-    'bootstrap/js/bootstrap-modal'
+    'bootstrap/js/bootstrap-modal',
+    'bootstrap/js/bootstrap-dropdown'
 ],
 function (exports, require, _) {
 

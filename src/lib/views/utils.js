@@ -54,12 +54,17 @@ function (exports, $) {
         return el;
     };
 
+    exports.$clearDropdowns = function () {
+        $('[data-toggle="dropdown"]').parent().removeClass('open');
+    };
+
     exports.$clearModals = function () {
         $('.modal').modal('hide').remove();
     };
 
     exports.$showModal = function (html) {
         exports.$clearModals();
+        exports.$clearDropdowns();
         return $(html).appendTo(document.body).modal('show');
     };
 

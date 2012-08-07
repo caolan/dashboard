@@ -17452,6 +17452,78 @@ function (couchr, events, utils) {
     return exports;
 });
 
+define('lib/views/utils',[
+    'exports',
+    'jquery'
+],
+function (exports, $) {
+
+    exports.clearValidation = function (form) {
+        // clear validation/error messages
+        $('.error', form).removeClass('error');
+        $('.help-inline', form).text('');
+        $('.alert', form).remove();
+        return form;
+    };
+
+    exports.showValidationError = function (e) {
+        e.control_group.addClass('error');
+        $('.help-inline', e.control_group).text(e.text);
+        return e;
+    };
+
+    exports.serializeObject = function (form) {
+        var arr = $(form).serializeArray();
+        return _.foldl(arr, function (obj, f) {
+            if (obj[f.name]) {
+                throw new Error('conflicting name for field: ' + f.name);
+            }
+            obj[f.name] = f.value;
+            return obj;
+        },
+        {});
+    };
+
+    exports.wrapNetworkError = function (err) {
+        if (err.status === 0) {
+            var e = new Error(
+                'Request timed out, please check your connection.'
+            );
+            e.original = err;
+            return e;
+        }
+        return err;
+    };
+
+    exports.showError = function (el, err) {
+        $(el).prepend(
+          '<div class="alert alert-error">' +
+            '<a class="close" data-dismiss="alert">' +
+              '&times;' +
+            '</a>' +
+            '<strong>Error</strong> ' +
+            (err.message || err.toString()) +
+          '</div>'
+        );
+        return el;
+    };
+
+    exports.$clearDropdowns = function () {
+        $('[data-toggle="dropdown"]').parent().removeClass('open');
+    };
+
+    exports.$clearModals = function () {
+        $('.modal').modal('hide').remove();
+    };
+
+    exports.$showModal = function (html) {
+        exports.$clearModals();
+        exports.$clearDropdowns();
+        return $(html).appendTo(document.body).modal('show');
+    };
+
+});
+
 define('lib/collections/projects',[
     'exports',
     'lodash'
@@ -19401,18 +19473,25 @@ define('text', ['text/text'], function (main) { return main; });
 
 define("text/text", function(){});
 
-define('text!templates/projects.handlebars',[],function () { return '<div id="main">\n  <div class="container-fluid">\n\n    {{#if projects}}\n    <table class="table table-striped table-projects">\n      <thead>\n      <tr>\n        <th>Name</th>\n        <th>Template</th>\n        <th>Admins</th>\n        <th>Members</th>\n        {{#if has_any_admin}} <th>Actions</th> {{/if}}\n      </tr>\n      </thead>\n      <tbody>\n        {{#each projects}}\n        <tr>\n          <td class="name">\n            <a title="{{db}}/{{name}}" href="{{url}}">\n              {{#if dashicon}}\n              <img class="icon" alt="Icon" src="{{dashicon}}" />\n              {{else}}\n              <img class="icon" alt="Icon" src="img/icons/default_22.png" />\n              {{/if}}\n            </a>\n            <a title="{{db}}/{{name}}" href="{{url}}">\n              {{db}}\n            </a>\n          </td>\n          <td class="template">\n            {{#if title}}{{title}}{{else}}{{name}}{{/if}}\n          </td>\n          <td class="admins">\n            {{security.admins.names}}\n            {{security.admins.roles}}\n          </td>\n          <td class="members">\n            {{security.members.names}}\n            {{security.members.roles}}\n          </td>\n          {{#if ../has_any_admin}}\n          <td class="actions">\n            {{#if is_admin}}\n              <a class="btn btn-danger">Delete</a>\n            {{/if}}\n          </td>\n          {{/if}}\n        </tr>\n        {{/each}}\n      </tbody>\n    </table>\n    {{/if}}\n\n  </div>\n</div>\n\n<div class="admin-bar visible-admin">\n  <div class="admin-bar-inner">\n    <div id="admin-bar-status"></div>\n    <div id="admin-bar-controls">\n      <a id="projects-refresh-btn" class="btn" href="#">\n        <i class="icon-refresh"></i> Refresh list\n      </a>\n      <a id="projects-add-btn" class="btn btn-success" href="#/templates">\n        <i class="icon-plus-sign"></i> Create new project\n      </a>\n    </div>\n  </div>\n</div>\n';});
+define('text!templates/projects.handlebars',[],function () { return '<div id="main">\n  <div class="container-fluid">\n\n    <table class="table table-striped table-projects">\n      <thead>\n      <tr>\n        <th>Name</th>\n        <th>Template</th>\n        <th>Version</th>\n        <th>Admins</th>\n        <th>Members</th>\n        <th><!-- actions --></th>\n      </tr>\n      </thead>\n      <tbody>\n      </tbody>\n    </table>\n\n  </div>\n</div>\n\n<div class="admin-bar visible-admin">\n  <div class="admin-bar-inner">\n    <div id="admin-bar-status"></div>\n    <div id="admin-bar-controls">\n      <a id="projects-refresh-btn" class="btn" href="#">\n        <i class="icon-refresh"></i> Refresh list\n      </a>\n      <a id="projects-add-btn" class="btn btn-success" href="#/templates">\n        <i class="icon-plus-sign"></i> Create new project\n      </a>\n    </div>\n  </div>\n</div>\n';});
+
+define('text!templates/projects-row.handlebars',[],function () { return '{{#with project}}\n<tr>\n  <td class="name">\n    <a title="{{db}}/{{name}}" href="{{url}}">\n      {{#if dashicon}}\n      <img class="icon" alt="Icon" src="{{dashicon}}" />\n      {{else}}\n      <img class="icon" alt="Icon" src="img/icons/default_22.png" />\n      {{/if}}\n    </a>\n    <a title="{{db}}/{{name}}" href="{{url}}">\n      {{db}}\n    </a>\n  </td>\n  <td class="template">\n    {{#if title}}{{title}}{{else}}{{name}}{{/if}}\n  </td>\n  <td class="version">\n    {{dashboard.version}}\n  </td>\n  <td class="admins">\n    {{security.admins.names}}\n    {{security.admins.roles}}\n  </td>\n  <td class="members">\n    {{security.members.names}}\n    {{security.members.roles}}\n  </td>\n  <td class="actions">\n    {{#if ../is_admin}}\n      <div class="btn-group">\n        <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">\n          <i class="icon-cog"></i>\n          <span class="caret"></span>\n        </a>\n        <ul class="dropdown-menu">\n          <!--<li><a href="#">Upgrade</a></li>-->\n          <li><a href="#" class="permissions-btn">Permissions</a></li>\n          <li class="divider"></li>\n          <li><a href="#" class="delete-btn">Delete</a></li>\n        </ul>\n      </div>\n    {{/if}}\n  </td>\n</tr>\n{{/with}}\n';});
+
+define('text!templates/projects-delete-modal.handlebars',[],function () { return '<div class="modal hide" id="project-delete-modal">\n\n  <div class="modal-header">\n    <button type="button" class="close" data-dismiss="modal">×</button>\n    <h3>Delete project</h3>\n  </div>\n\n  <div class="modal-body">\n    <form id="create-project-form" class="form-vertical">\n      <fieldset>\n        <div class="control-group">\n          <div class="controls">\n            <label class="radio">\n              <input type="radio" name="deleteRadios" id="deleteRadios1" value="all" checked />\n              Delete project and all associated data in the database.\n            </label>\n            <label class="radio">\n              <input type="radio" name="deleteRadios" id="deleteRadios2" value="template" />\n              Clear project template only\n            </label>\n          </div>\n        </div>\n      </fieldset>\n    </form>\n  </div>\n\n  <div class="modal-footer">\n    <a href="#" class="btn" data-dismiss="modal">Close</a>\n    <a href="#" class="btn btn-danger">Delete</a>\n  </div>\n\n</div>\n';});
 
 define('lib/views/projects',[
     'exports',
     'require',
     'jquery',
     'lodash',
+    './utils',
     '../remote/projects',
     '../remote/settings',
     '../remote/session',
     '../collections/projects',
-    'hbt!../../templates/projects'
+    'hbt!../../templates/projects',
+    'hbt!../../templates/projects-row',
+    'hbt!../../templates/projects-delete-modal'
 ],
 function (exports, require, $, _) {
 
@@ -19420,7 +19499,8 @@ function (exports, require, $, _) {
         projects = require('../remote/projects'),
         settings = require('../remote/settings'),
         session = require('../remote/session'),
-        p_collection = require('../collections/projects');
+        p_collection = require('../collections/projects'),
+        vutils = require('./utils');
 
 
     exports.filterProjects = function (cfg, userCtx, ps) {
@@ -19437,17 +19517,32 @@ function (exports, require, $, _) {
     };
 
 
+    exports.showDeleteModal = function () {
+        var html = require('hbt!../../templates/projects-delete-modal')({});
+        vutils.$showModal(html);
+    };
+
+
+    exports.renderRow = function (userCtx, p) {
+        var el = $(require('hbt!../../templates/projects-row')({
+            is_admin: p_collection.isAdmin(userCtx, p),
+            project: p
+        }));
+        $('.actions a.delete-btn', el).click(function (ev) {
+            ev.preventDefault();
+            exports.showDeleteModal();
+            return false;
+        });
+        return el;
+    };
+
+
     exports.render = function (cfg, userCtx, ps) {
         ps = exports.filterProjects(cfg, userCtx, ps);
-        ps = _.map(ps, function (p) {
-            p.is_admin = p_collection.isAdmin(userCtx, p);
-            return p;
+        var el = $(tmpl({}));
+        _.each(ps, function (p) {
+            $('tbody', el).append( exports.renderRow(userCtx, p) );
         });
-        var el = $(tmpl({
-            // does user have admin access to any projects in the list?
-            has_any_admin: _.any(ps, _.partial(p_collection.isAdmin, userCtx)),
-            projects: ps
-        }));
         // bind event handler to refresh button
         $('#projects-refresh-btn', el).click(
             exports.$doRefresh(cfg, userCtx, ps)
@@ -19496,73 +19591,6 @@ function (exports, require, $, _) {
             });
             return false;
         };
-    };
-
-});
-
-define('lib/views/utils',[
-    'exports',
-    'jquery'
-],
-function (exports, $) {
-
-    exports.clearValidation = function (form) {
-        // clear validation/error messages
-        $('.error', form).removeClass('error');
-        $('.help-inline', form).text('');
-        $('.alert', form).remove();
-        return form;
-    };
-
-    exports.showValidationError = function (e) {
-        e.control_group.addClass('error');
-        $('.help-inline', e.control_group).text(e.text);
-        return e;
-    };
-
-    exports.serializeObject = function (form) {
-        var arr = $(form).serializeArray();
-        return _.foldl(arr, function (obj, f) {
-            if (obj[f.name]) {
-                throw new Error('conflicting name for field: ' + f.name);
-            }
-            obj[f.name] = f.value;
-            return obj;
-        },
-        {});
-    };
-
-    exports.wrapNetworkError = function (err) {
-        if (err.status === 0) {
-            var e = new Error(
-                'Request timed out, please check your connection.'
-            );
-            e.original = err;
-            return e;
-        }
-        return err;
-    };
-
-    exports.showError = function (el, err) {
-        $(el).prepend(
-          '<div class="alert alert-error">' +
-            '<a class="close" data-dismiss="alert">' +
-              '&times;' +
-            '</a>' +
-            '<strong>Error</strong> ' +
-            (err.message || err.toString()) +
-          '</div>'
-        );
-        return el;
-    };
-
-    exports.$clearModals = function () {
-        $('.modal').modal('hide').remove();
-    };
-
-    exports.$showModal = function (html) {
-        exports.$clearModals();
-        return $(html).appendTo(document.body).modal('show');
     };
 
 });
@@ -20708,6 +20736,108 @@ define("bootstrap/js/bootstrap-button", function(){});
 }(window.jQuery);
 define("bootstrap/js/bootstrap-modal", function(){});
 
+/* ============================================================
+ * bootstrap-dropdown.js v2.0.3
+ * http://twitter.github.com/bootstrap/javascript.html#dropdowns
+ * ============================================================
+ * Copyright 2012 Twitter, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * ============================================================ */
+
+
+!function ($) {
+
+   // jshint ;_;
+
+
+ /* DROPDOWN CLASS DEFINITION
+  * ========================= */
+
+  var toggle = '[data-toggle="dropdown"]'
+    , Dropdown = function (element) {
+        var $el = $(element).on('click.dropdown.data-api', this.toggle)
+        $('html').on('click.dropdown.data-api', function () {
+          $el.parent().removeClass('open')
+        })
+      }
+
+  Dropdown.prototype = {
+
+    constructor: Dropdown
+
+  , toggle: function (e) {
+      var $this = $(this)
+        , $parent
+        , selector
+        , isActive
+
+      if ($this.is('.disabled, :disabled')) return
+
+      selector = $this.attr('data-target')
+
+      if (!selector) {
+        selector = $this.attr('href')
+        selector = selector && selector.replace(/.*(?=#[^\s]*$)/, '') //strip for ie7
+      }
+
+      $parent = $(selector)
+      $parent.length || ($parent = $this.parent())
+
+      isActive = $parent.hasClass('open')
+
+      clearMenus()
+
+      if (!isActive) $parent.toggleClass('open')
+
+      return false
+    }
+
+  }
+
+  function clearMenus() {
+    $(toggle).parent().removeClass('open')
+  }
+
+
+  /* DROPDOWN PLUGIN DEFINITION
+   * ========================== */
+
+  $.fn.dropdown = function (option) {
+    return this.each(function () {
+      var $this = $(this)
+        , data = $this.data('dropdown')
+      if (!data) $this.data('dropdown', (data = new Dropdown(this)))
+      if (typeof option == 'string') data[option].call($this)
+    })
+  }
+
+  $.fn.dropdown.Constructor = Dropdown
+
+
+  /* APPLY TO STANDARD DROPDOWN ELEMENTS
+   * =================================== */
+
+  $(function () {
+    $('html').on('click.dropdown.data-api', clearMenus)
+    $('body')
+      .on('click.dropdown', '.dropdown form', function (e) { e.stopPropagation() })
+      .on('click.dropdown.data-api', toggle, Dropdown.prototype.toggle)
+  })
+
+}(window.jQuery);
+define("bootstrap/js/bootstrap-dropdown", function(){});
+
 define('lib/app',[
     'exports',
     'require',
@@ -20725,7 +20855,8 @@ define('lib/app',[
     './views/signup',
     'hbt!../templates/navigation',
     'bootstrap/js/bootstrap-button',
-    'bootstrap/js/bootstrap-modal'
+    'bootstrap/js/bootstrap-modal',
+    'bootstrap/js/bootstrap-dropdown'
 ],
 function (exports, require, _) {
 

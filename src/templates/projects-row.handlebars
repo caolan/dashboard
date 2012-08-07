@@ -1,0 +1,46 @@
+{{#with project}}
+<tr>
+  <td class="name">
+    <a title="{{db}}/{{name}}" href="{{url}}">
+      {{#if dashicon}}
+      <img class="icon" alt="Icon" src="{{dashicon}}" />
+      {{else}}
+      <img class="icon" alt="Icon" src="img/icons/default_22.png" />
+      {{/if}}
+    </a>
+    <a title="{{db}}/{{name}}" href="{{url}}">
+      {{db}}
+    </a>
+  </td>
+  <td class="template">
+    {{#if title}}{{title}}{{else}}{{name}}{{/if}}
+  </td>
+  <td class="version">
+    {{dashboard.version}}
+  </td>
+  <td class="admins">
+    {{security.admins.names}}
+    {{security.admins.roles}}
+  </td>
+  <td class="members">
+    {{security.members.names}}
+    {{security.members.roles}}
+  </td>
+  <td class="actions">
+    {{#if ../is_admin}}
+      <div class="btn-group">
+        <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
+          <i class="icon-cog"></i>
+          <span class="caret"></span>
+        </a>
+        <ul class="dropdown-menu">
+          <!--<li><a href="#">Upgrade</a></li>-->
+          <li><a href="#" class="permissions-btn">Permissions</a></li>
+          <li class="divider"></li>
+          <li><a href="#" class="delete-btn">Delete</a></li>
+        </ul>
+      </div>
+    {{/if}}
+  </td>
+</tr>
+{{/with}}

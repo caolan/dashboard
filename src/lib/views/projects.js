@@ -3,11 +3,14 @@ define([
     'require',
     'jquery',
     'lodash',
+    './utils',
     '../remote/projects',
     '../remote/settings',
     '../remote/session',
     '../collections/projects',
-    'hbt!../../templates/projects'
+    'hbt!../../templates/projects',
+    'hbt!../../templates/projects-row',
+    'hbt!../../templates/projects-delete-modal'
 ],
 function (exports, require, $, _) {
 
@@ -15,7 +18,8 @@ function (exports, require, $, _) {
         projects = require('../remote/projects'),
         settings = require('../remote/settings'),
         session = require('../remote/session'),
-        p_collection = require('../collections/projects');
+        p_collection = require('../collections/projects'),
+        vutils = require('./utils');
 
 
     exports.filterProjects = function (cfg, userCtx, ps) {
@@ -32,17 +36,32 @@ function (exports, require, $, _) {
     };
 
 
+    exports.showDeleteModal = function () {
+        var html = require('hbt!../../templates/projects-delete-modal')({});
+        vutils.$showModal(html);
+    };
+
+
+    exports.renderRow = function (userCtx, p) {
+        var el = $(require('hbt!../../templates/projects-row')({
+            is_admin: p_collection.isAdmin(userCtx, p),
+            project: p
+        }));
+        $('.actions a.delete-btn', el).click(function (ev) {
+            ev.preventDefault();
+            exports.showDeleteModal();
+            return false;
+        });
+        return el;
+    };
+
+
     exports.render = function (cfg, userCtx, ps) {
         ps = exports.filterProjects(cfg, userCtx, ps);
-        ps = _.map(ps, function (p) {
-            p.is_admin = p_collection.isAdmin(userCtx, p);
-            return p;
+        var el = $(tmpl({}));
+        _.each(ps, function (p) {
+            $('tbody', el).append( exports.renderRow(userCtx, p) );
         });
-        var el = $(tmpl({
-            // does user have admin access to any projects in the list?
-            has_any_admin: _.any(ps, _.partial(p_collection.isAdmin, userCtx)),
-            projects: ps
-        }));
         // bind event handler to refresh button
         $('#projects-refresh-btn', el).click(
             exports.$doRefresh(cfg, userCtx, ps)
