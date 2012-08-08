@@ -36,7 +36,7 @@ function (exports, require, $, _) {
     };
 
 
-    exports.$showDeleteModal = function (p) {
+    exports.$showDeleteModal = function (p, tr) {
         var el = $(require('hbt!../../templates/projects-delete-modal')({}));
         $('.btn-danger', el).click(function (ev) {
             ev.preventDefault();
@@ -54,6 +54,9 @@ function (exports, require, $, _) {
                 }
                 else {
                     vutils.$clearModals();
+                    $(tr).fadeOut('slow', function () {
+                        $(tr).remove();
+                    });
                 }
             }
 
@@ -80,7 +83,7 @@ function (exports, require, $, _) {
         }));
         $('.actions a.delete-btn', el).click(function (ev) {
             ev.preventDefault();
-            exports.$showDeleteModal(p);
+            exports.$showDeleteModal(p, el);
             return false;
         });
         return el;

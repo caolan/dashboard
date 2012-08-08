@@ -86,6 +86,7 @@ function (exports, require, $, _) {
             DATA.projects = _.reject(DATA.projects, function (project) {
                 return project._id === p._id;
             });
+            exports.$saveLocal();
             return callback();
         });
     };
@@ -337,7 +338,7 @@ function (exports, require, $, _) {
                 return callback(err);
             }
             // remove project doc from dashboard db
-            couchr.delete('api/' + p._id, {rev: p._rev}, callback);
+            exports.$removeProjectDoc(p, callback);
         });
     };
 
@@ -358,7 +359,7 @@ function (exports, require, $, _) {
                 return callback(err);
             }
             // remove project doc from dashboard db
-            couchr.delete('api/' + p._id, {rev: p._rev}, callback);
+            exports.$removeProjectDoc(p, callback);
         });
     };
 

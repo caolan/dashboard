@@ -17158,6 +17158,7 @@ function (exports, require, $, _) {
             DATA.projects = _.reject(DATA.projects, function (project) {
                 return project._id === p._id;
             });
+            exports.$saveLocal();
             return callback();
         });
     };
@@ -17409,7 +17410,7 @@ function (exports, require, $, _) {
                 return callback(err);
             }
             // remove project doc from dashboard db
-            couchr.delete('api/' + p._id, {rev: p._rev}, callback);
+            exports.$removeProjectDoc(p, callback);
         });
     };
 
@@ -17430,7 +17431,7 @@ function (exports, require, $, _) {
                 return callback(err);
             }
             // remove project doc from dashboard db
-            couchr.delete('api/' + p._id, {rev: p._rev}, callback);
+            exports.$removeProjectDoc(p, callback);
         });
     };
 
@@ -19598,7 +19599,7 @@ function (exports, require, $, _) {
     };
 
 
-    exports.$showDeleteModal = function (p) {
+    exports.$showDeleteModal = function (p, tr) {
         var el = $(require('hbt!../../templates/projects-delete-modal')({}));
         $('.btn-danger', el).click(function (ev) {
             ev.preventDefault();
@@ -19616,6 +19617,9 @@ function (exports, require, $, _) {
                 }
                 else {
                     vutils.$clearModals();
+                    $(tr).fadeOut('slow', function () {
+                        $(tr).remove();
+                    });
                 }
             }
 
@@ -19642,7 +19646,7 @@ function (exports, require, $, _) {
         }));
         $('.actions a.delete-btn', el).click(function (ev) {
             ev.preventDefault();
-            exports.$showDeleteModal(p);
+            exports.$showDeleteModal(p, el);
             return false;
         });
         return el;
