@@ -76,37 +76,73 @@ function (exports, require, $, _) {
         }
     };
 
+    exports.$removeProjectDoc = function (p, callback) {
+        couchr.delete('api/' + p._id, {rev: p._rev}, function (err) {
+            // if already removed elsewhere, ignore error
+            if (err && err.reason !== 'deleted') {
+                return callback(err);
+            }
+            // update local copy
+            DATA.projects = _.reject(DATA.projects, function (project) {
+                return project._id === p._id;
+            });
+            return callback();
+        });
+    };
+
+    // removes project docs for dbs/ddocs that no longer exist
+    exports.$prune = function (callback) {
+        var ps = exports.$get();
+        async.forEach(ps, function (p, cb) {
+
+            // test if db/ddoc exists
+            couchr.head(p.ddoc_url, function (err) {
+                if (err && err.status === 404) {
+                    return exports.$removeProjectDoc(p, cb);
+                }
+                return cb(err);
+            });
+        },
+        callback);
+    };
+
     exports.$refresh = function (/*optional*/callback) {
         callback = callback || utils.logErrorsCallback;
         var ev = new events.EventEmitter();
 
-        couchr.get('/_api/_all_dbs', function (err, dbs) {
+        // clean project docs for deleted dbs/ddocs
+        exports.$prune(function (err) {
             if (err) {
-                return callback('Failed to update project list\n' + err);
+                return callback(err);
             }
-            var completed = 0;
-            async.forEachLimit(dbs, 4, function (db, cb) {
-                exports.$refreshDB(db, function (err) {
-                    if (err) {
-                        return cb(err);
-                    }
-                    completed++;
-                    ev.emit(
-                        'progress',
-                        Math.floor(completed / dbs.length * 100)
-                    );
-                    cb();
-                });
-            },
-            function (err) {
+            couchr.get('/_api/_all_dbs', function (err, dbs) {
                 if (err) {
-                    return callback(err);
+                    return callback('Failed to update project list\n' + err);
                 }
-                exports.$saveLocal();
-                $.get('data/dashboard-data.js', function (data) {
-                    // cache bust
+                var completed = 0;
+                async.forEachLimit(dbs, 4, function (db, cb) {
+                    exports.$refreshDB(db, function (err) {
+                        if (err) {
+                            return cb(err);
+                        }
+                        completed++;
+                        ev.emit(
+                            'progress',
+                            Math.floor(completed / dbs.length * 100)
+                        );
+                        cb();
+                    });
+                },
+                function (err) {
+                    if (err) {
+                        return callback(err);
+                    }
+                    exports.$saveLocal();
+                    $.get('data/dashboard-data.js', function (data) {
+                        // cache bust
+                    });
+                    callback();
                 });
-                callback();
             });
         });
         return ev;
@@ -285,6 +321,45 @@ function (exports, require, $, _) {
             callback(null, pdoc);
         });
         return ev;
+    };
+
+
+    exports.$deleteDB = function (p, callback) {
+        if (!p.db) {
+            return callback(new Error('Project missing db property'));
+        }
+        if (!p._rev) {
+            return callback(new Error('Project missing _rev property'));
+        }
+        // delete project db
+        couchr.delete('/' + p.db, function (err) {
+            if (err) {
+                return callback(err);
+            }
+            // remove project doc from dashboard db
+            couchr.delete('api/' + p._id, {rev: p._rev}, callback);
+        });
+    };
+
+
+    exports.$deleteTemplate = function (p, callback) {
+        if (!p.ddoc_url) {
+            return callback(new Error('Project missing ddoc_url property'));
+        }
+        if (!p.ddoc_rev) {
+            return callback(new Error('Project missing ddoc_rev property'));
+        }
+        if (!p._rev) {
+            return callback(new Error('Project missing _rev property'));
+        }
+        // delete project template doc
+        couchr.delete(p.ddoc_url, {rev: p.ddoc_rev}, function (err) {
+            if (err) {
+                return callback(err);
+            }
+            // remove project doc from dashboard db
+            couchr.delete('api/' + p._id, {rev: p._rev}, callback);
+        });
     };
 
 

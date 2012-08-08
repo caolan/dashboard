@@ -42,15 +42,21 @@ function (exports, $) {
     };
 
     exports.showError = function (el, err) {
-        $(el).prepend(
-          '<div class="alert alert-error">' +
-            '<a class="close" data-dismiss="alert">' +
-              '&times;' +
-            '</a>' +
-            '<strong>Error</strong> ' +
-            (err.message || err.toString()) +
-          '</div>'
+        var alert_el = $(
+            '<div class="alert alert-error">' +
+              '<a class="close" data-dismiss="alert">' +
+                '&times;' +
+              '</a>' +
+              '<strong>Error</strong> ' +
+              (err.message || err.toString()) +
+            '</div>'
         );
+        $('a.close', alert_el).click(function (ev) {
+            ev.preventDefault();
+            alert_el.remove();
+            return false;
+        });
+        $(el).prepend(alert_el);
         return el;
     };
 

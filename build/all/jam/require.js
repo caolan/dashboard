@@ -17148,37 +17148,73 @@ function (exports, require, $, _) {
         }
     };
 
+    exports.$removeProjectDoc = function (p, callback) {
+        couchr.delete('api/' + p._id, {rev: p._rev}, function (err) {
+            // if already removed elsewhere, ignore error
+            if (err && err.reason !== 'deleted') {
+                return callback(err);
+            }
+            // update local copy
+            DATA.projects = _.reject(DATA.projects, function (project) {
+                return project._id === p._id;
+            });
+            return callback();
+        });
+    };
+
+    // removes project docs for dbs/ddocs that no longer exist
+    exports.$prune = function (callback) {
+        var ps = exports.$get();
+        async.forEach(ps, function (p, cb) {
+
+            // test if db/ddoc exists
+            couchr.head(p.ddoc_url, function (err) {
+                if (err && err.status === 404) {
+                    return exports.$removeProjectDoc(p, cb);
+                }
+                return cb(err);
+            });
+        },
+        callback);
+    };
+
     exports.$refresh = function (/*optional*/callback) {
         callback = callback || utils.logErrorsCallback;
         var ev = new events.EventEmitter();
 
-        couchr.get('/_api/_all_dbs', function (err, dbs) {
+        // clean project docs for deleted dbs/ddocs
+        exports.$prune(function (err) {
             if (err) {
-                return callback('Failed to update project list\n' + err);
+                return callback(err);
             }
-            var completed = 0;
-            async.forEachLimit(dbs, 4, function (db, cb) {
-                exports.$refreshDB(db, function (err) {
-                    if (err) {
-                        return cb(err);
-                    }
-                    completed++;
-                    ev.emit(
-                        'progress',
-                        Math.floor(completed / dbs.length * 100)
-                    );
-                    cb();
-                });
-            },
-            function (err) {
+            couchr.get('/_api/_all_dbs', function (err, dbs) {
                 if (err) {
-                    return callback(err);
+                    return callback('Failed to update project list\n' + err);
                 }
-                exports.$saveLocal();
-                $.get('data/dashboard-data.js', function (data) {
-                    // cache bust
+                var completed = 0;
+                async.forEachLimit(dbs, 4, function (db, cb) {
+                    exports.$refreshDB(db, function (err) {
+                        if (err) {
+                            return cb(err);
+                        }
+                        completed++;
+                        ev.emit(
+                            'progress',
+                            Math.floor(completed / dbs.length * 100)
+                        );
+                        cb();
+                    });
+                },
+                function (err) {
+                    if (err) {
+                        return callback(err);
+                    }
+                    exports.$saveLocal();
+                    $.get('data/dashboard-data.js', function (data) {
+                        // cache bust
+                    });
+                    callback();
                 });
-                callback();
             });
         });
         return ev;
@@ -17360,6 +17396,45 @@ function (exports, require, $, _) {
     };
 
 
+    exports.$deleteDB = function (p, callback) {
+        if (!p.db) {
+            return callback(new Error('Project missing db property'));
+        }
+        if (!p._rev) {
+            return callback(new Error('Project missing _rev property'));
+        }
+        // delete project db
+        couchr.delete('/' + p.db, function (err) {
+            if (err) {
+                return callback(err);
+            }
+            // remove project doc from dashboard db
+            couchr.delete('api/' + p._id, {rev: p._rev}, callback);
+        });
+    };
+
+
+    exports.$deleteTemplate = function (p, callback) {
+        if (!p.ddoc_url) {
+            return callback(new Error('Project missing ddoc_url property'));
+        }
+        if (!p.ddoc_rev) {
+            return callback(new Error('Project missing ddoc_rev property'));
+        }
+        if (!p._rev) {
+            return callback(new Error('Project missing _rev property'));
+        }
+        // delete project template doc
+        couchr.delete(p.ddoc_url, {rev: p.ddoc_rev}, function (err) {
+            if (err) {
+                return callback(err);
+            }
+            // remove project doc from dashboard db
+            couchr.delete('api/' + p._id, {rev: p._rev}, callback);
+        });
+    };
+
+
 });
 
 define('lib/remote/session',[
@@ -17496,15 +17571,21 @@ function (exports, $) {
     };
 
     exports.showError = function (el, err) {
-        $(el).prepend(
-          '<div class="alert alert-error">' +
-            '<a class="close" data-dismiss="alert">' +
-              '&times;' +
-            '</a>' +
-            '<strong>Error</strong> ' +
-            (err.message || err.toString()) +
-          '</div>'
+        var alert_el = $(
+            '<div class="alert alert-error">' +
+              '<a class="close" data-dismiss="alert">' +
+                '&times;' +
+              '</a>' +
+              '<strong>Error</strong> ' +
+              (err.message || err.toString()) +
+            '</div>'
         );
+        $('a.close', alert_el).click(function (ev) {
+            ev.preventDefault();
+            alert_el.remove();
+            return false;
+        });
+        $(el).prepend(alert_el);
         return el;
     };
 
@@ -19477,7 +19558,7 @@ define('text!templates/projects.handlebars',[],function () { return '<div id="ma
 
 define('text!templates/projects-row.handlebars',[],function () { return '{{#with project}}\n<tr>\n  <td class="name">\n    <a title="{{db}}/{{name}}" href="{{url}}">\n      {{#if dashicon}}\n      <img class="icon" alt="Icon" src="{{dashicon}}" />\n      {{else}}\n      <img class="icon" alt="Icon" src="img/icons/default_22.png" />\n      {{/if}}\n    </a>\n    <a title="{{db}}/{{name}}" href="{{url}}">\n      {{db}}\n    </a>\n  </td>\n  <td class="template">\n    {{#if title}}{{title}}{{else}}{{name}}{{/if}}\n  </td>\n  <td class="version">\n    {{dashboard.version}}\n  </td>\n  <td class="admins">\n    {{security.admins.names}}\n    {{security.admins.roles}}\n  </td>\n  <td class="members">\n    {{security.members.names}}\n    {{security.members.roles}}\n  </td>\n  <td class="actions">\n    {{#if ../is_admin}}\n      <div class="btn-group">\n        <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">\n          <i class="icon-cog"></i>\n          <span class="caret"></span>\n        </a>\n        <ul class="dropdown-menu">\n          <!--<li><a href="#">Upgrade</a></li>-->\n          <li><a href="#" class="permissions-btn">Permissions</a></li>\n          <li class="divider"></li>\n          <li><a href="#" class="delete-btn">Delete</a></li>\n        </ul>\n      </div>\n    {{/if}}\n  </td>\n</tr>\n{{/with}}\n';});
 
-define('text!templates/projects-delete-modal.handlebars',[],function () { return '<div class="modal hide" id="project-delete-modal">\n\n  <div class="modal-header">\n    <button type="button" class="close" data-dismiss="modal">×</button>\n    <h3>Delete project</h3>\n  </div>\n\n  <div class="modal-body">\n    <form id="create-project-form" class="form-vertical">\n      <fieldset>\n        <div class="control-group">\n          <div class="controls">\n            <label class="radio">\n              <input type="radio" name="deleteRadios" id="deleteRadios1" value="all" checked />\n              Delete project and all associated data in the database.\n            </label>\n            <label class="radio">\n              <input type="radio" name="deleteRadios" id="deleteRadios2" value="template" />\n              Clear project template only\n            </label>\n          </div>\n        </div>\n      </fieldset>\n    </form>\n  </div>\n\n  <div class="modal-footer">\n    <a href="#" class="btn" data-dismiss="modal">Close</a>\n    <a href="#" class="btn btn-danger">Delete</a>\n  </div>\n\n</div>\n';});
+define('text!templates/projects-delete-modal.handlebars',[],function () { return '<div class="modal hide" id="project-delete-modal">\n\n  <div class="modal-header">\n    <button type="button" class="close" data-dismiss="modal">×</button>\n    <h3>Delete project</h3>\n  </div>\n\n  <div class="modal-body">\n    <form id="create-project-form" class="form-vertical">\n      <fieldset>\n        <div class="control-group">\n          <div class="controls">\n            <label class="radio">\n              <input type="radio" name="deleteRadios" id="deleteRadios1" value="all" checked />\n              Delete project and all associated data in the database.\n            </label>\n            <label class="radio">\n              <input type="radio" name="deleteRadios" id="deleteRadios2" value="template" />\n              Clear project template only\n            </label>\n          </div>\n        </div>\n      </fieldset>\n    </form>\n  </div>\n\n  <div class="modal-footer">\n    <a href="#" class="btn" data-dismiss="modal">Cancel</a>\n    <a href="#" class="btn btn-danger">Delete</a>\n  </div>\n\n</div>\n';});
 
 define('lib/views/projects',[
     'exports',
@@ -19517,9 +19598,40 @@ function (exports, require, $, _) {
     };
 
 
-    exports.showDeleteModal = function () {
-        var html = require('hbt!../../templates/projects-delete-modal')({});
-        vutils.$showModal(html);
+    exports.$showDeleteModal = function (p) {
+        var el = $(require('hbt!../../templates/projects-delete-modal')({}));
+        $('.btn-danger', el).click(function (ev) {
+            ev.preventDefault();
+
+            var that = this;
+            $(that).button('loading');
+            var val = $('[name=deleteRadios]:checked', el).val();
+
+            function done(err) {
+                vutils.clearValidation(el);
+                if (err) {
+                    vutils.showError($('.modal-body', el), err);
+                    $(that).button('reset');
+                    return;
+                }
+                else {
+                    vutils.$clearModals();
+                }
+            }
+
+            if (val === 'all') {
+                projects.$deleteDB(p, done);
+            }
+            else if (val === 'template') {
+                projects.$deleteTemplate(p, done);
+            }
+            else {
+                done(new Error('Unknown option: ' + val));
+            }
+            return false;
+        });
+        vutils.$showModal(el);
+        return el;
     };
 
 
@@ -19530,7 +19642,7 @@ function (exports, require, $, _) {
         }));
         $('.actions a.delete-btn', el).click(function (ev) {
             ev.preventDefault();
-            exports.showDeleteModal();
+            exports.$showDeleteModal(p);
             return false;
         });
         return el;
@@ -19545,13 +19657,13 @@ function (exports, require, $, _) {
         });
         // bind event handler to refresh button
         $('#projects-refresh-btn', el).click(
-            exports.$doRefresh(cfg, userCtx, ps)
+            exports.$doRefresh(cfg, userCtx)
         );
         return el;
     };
 
 
-    exports.$doRefresh = function (cfg, userCtx, ps) {
+    exports.$doRefresh = function (cfg, userCtx) {
         return function (ev) {
             ev.preventDefault();
             var that = this;
@@ -19569,6 +19681,7 @@ function (exports, require, $, _) {
                 var bar = $('#admin-bar-status .progress .bar');
                 var fn = function () {
                     $('#admin-bar-status .progress').fadeOut(function () {
+                        var ps = projects.$get();
                         $('#content').html( exports.render(cfg, userCtx, ps));
                     });
                     $(that).button('reset');

@@ -36,9 +36,40 @@ function (exports, require, $, _) {
     };
 
 
-    exports.showDeleteModal = function () {
-        var html = require('hbt!../../templates/projects-delete-modal')({});
-        vutils.$showModal(html);
+    exports.$showDeleteModal = function (p) {
+        var el = $(require('hbt!../../templates/projects-delete-modal')({}));
+        $('.btn-danger', el).click(function (ev) {
+            ev.preventDefault();
+
+            var that = this;
+            $(that).button('loading');
+            var val = $('[name=deleteRadios]:checked', el).val();
+
+            function done(err) {
+                vutils.clearValidation(el);
+                if (err) {
+                    vutils.showError($('.modal-body', el), err);
+                    $(that).button('reset');
+                    return;
+                }
+                else {
+                    vutils.$clearModals();
+                }
+            }
+
+            if (val === 'all') {
+                projects.$deleteDB(p, done);
+            }
+            else if (val === 'template') {
+                projects.$deleteTemplate(p, done);
+            }
+            else {
+                done(new Error('Unknown option: ' + val));
+            }
+            return false;
+        });
+        vutils.$showModal(el);
+        return el;
     };
 
 
@@ -49,7 +80,7 @@ function (exports, require, $, _) {
         }));
         $('.actions a.delete-btn', el).click(function (ev) {
             ev.preventDefault();
-            exports.showDeleteModal();
+            exports.$showDeleteModal(p);
             return false;
         });
         return el;
@@ -64,13 +95,13 @@ function (exports, require, $, _) {
         });
         // bind event handler to refresh button
         $('#projects-refresh-btn', el).click(
-            exports.$doRefresh(cfg, userCtx, ps)
+            exports.$doRefresh(cfg, userCtx)
         );
         return el;
     };
 
 
-    exports.$doRefresh = function (cfg, userCtx, ps) {
+    exports.$doRefresh = function (cfg, userCtx) {
         return function (ev) {
             ev.preventDefault();
             var that = this;
@@ -88,6 +119,7 @@ function (exports, require, $, _) {
                 var bar = $('#admin-bar-status .progress .bar');
                 var fn = function () {
                     $('#admin-bar-status .progress').fadeOut(function () {
+                        var ps = projects.$get();
                         $('#content').html( exports.render(cfg, userCtx, ps));
                     });
                     $(that).button('reset');
