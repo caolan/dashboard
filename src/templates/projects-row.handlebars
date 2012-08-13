@@ -1,5 +1,8 @@
 {{#with project}}
 <tr>
+  <td class="select">
+    <input type="checkbox" />
+  </td>
   <td class="name">
     <a title="{{db}}/{{name}}" href="{{url}}">
       {{#if dashicon}}
@@ -26,11 +29,13 @@
     {{security.members.names}}
     {{security.members.roles}}
   </td>
+  <!--
   <td class="actions">
     {{#if ../is_admin}}
       <a href="#" class="btn delete-btn"><i class="icon-trash"></i> Delete</a>
       <a href="#" class="btn permissions-btn"><i class="icon-key"></i> Permissions</a>
     {{/if}}
   </td>
+  -->
 </tr>
 {{/with}}

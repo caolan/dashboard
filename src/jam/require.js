@@ -2032,42 +2032,9 @@ var requirejs, require, define;
 var jam = {
     "packages": [
         {
-            "name": "bootstrap",
-            "location": "jam/bootstrap"
-        },
-        {
-            "name": "font-awesome",
-            "location": "jam/font-awesome"
-        },
-        {
-            "name": "handlebars",
-            "location": "jam/handlebars",
-            "main": "handlebars.js"
-        },
-        {
             "name": "hbt",
             "location": "jam/hbt",
             "main": "hbt.js"
-        },
-        {
-            "name": "couchr",
-            "location": "jam/couchr",
-            "main": "couchr.js"
-        },
-        {
-            "name": "async",
-            "location": "jam/async",
-            "main": "./lib/async"
-        },
-        {
-            "name": "jquery",
-            "location": "jam/jquery",
-            "main": "jquery.js"
-        },
-        {
-            "name": "director",
-            "location": "jam/director",
-            "main": "director.js"
         },
         {
             "name": "events",
@@ -2075,17 +2042,50 @@ var jam = {
             "main": "events.js"
         },
         {
-            "name": "lodash",
-            "location": "jam/lodash",
-            "main": "lodash"
+            "name": "jquery",
+            "location": "jam/jquery",
+            "main": "jquery.js"
+        },
+        {
+            "name": "async",
+            "location": "jam/async",
+            "main": "./lib/async"
+        },
+        {
+            "name": "couchr",
+            "location": "jam/couchr",
+            "main": "couchr.js"
+        },
+        {
+            "name": "font-awesome",
+            "location": "jam/font-awesome"
         },
         {
             "name": "text",
             "location": "jam/text",
             "main": "text.js"
+        },
+        {
+            "name": "handlebars",
+            "location": "jam/handlebars",
+            "main": "handlebars.js"
+        },
+        {
+            "name": "director",
+            "location": "jam/director",
+            "main": "director.js"
+        },
+        {
+            "name": "bootstrap",
+            "location": "jam/bootstrap"
+        },
+        {
+            "name": "lodash",
+            "location": "jam/lodash",
+            "main": "lodash"
         }
     ],
-    "version": "0.1.14",
+    "version": "0.2.1",
     "shim": {
         "director": {
             "exports": "Router"

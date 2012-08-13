@@ -7829,3 +7829,6 @@ body {
 .table-templates tr.upgradable td.installed {
   color: #d73d3d;
 }
+.table-projects td.select {
+  width: 26px;
+}
