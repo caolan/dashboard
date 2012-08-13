@@ -95,7 +95,7 @@ function (exports, require, $, _) {
 
             var progress = $('<div class="progress" />');
             var bar = $('<div class="bar" />').appendTo(progress);
-            var btn = $(this).replaceWith(progress);
+            $(this).parents('td').html(progress);
 
             var installer = templates.$install(
                 doc.source, doc.ddoc_id, function (err, tdoc) {
@@ -104,7 +104,7 @@ function (exports, require, $, _) {
                         return console.error(err);
                     }
                     var fn = function () {
-                        progress.replaceWith(btn);
+                        //progress.replaceWith(btn);
                         // redraw row
                         tr.replaceWith( exports.renderRow(tdoc) );
                     };
@@ -142,7 +142,14 @@ function (exports, require, $, _) {
     };
 
     exports.renderRow = function (doc) {
-        var tr = $(require('hbt!../../templates/templates-row')(doc));
+        var tr = $(require('hbt!../../templates/templates-row')({
+            doc: doc,
+            upgradable: doc.installed &&
+                doc.installed.dashboard.version < doc.remote.dashboard.version
+        }));
+        $('.template-upgrade-btn', tr).click(
+            exports.$doInstallTemplate(tr, doc)
+        );
         $('.template-install-btn', tr).click(
             exports.$doInstallTemplate(tr, doc)
         );

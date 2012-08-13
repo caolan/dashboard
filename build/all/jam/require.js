@@ -20002,7 +20002,7 @@ define('text!templates/templates.handlebars',[],function () { return '<div id="m
 
 define('text!templates/templates-list.handlebars',[],function () { return '<table class="table table-striped table-templates">\n  <thead>\n    <tr>\n      <th>Name</th>\n      <th>Source</th>\n      <th>Installed</th>\n      <th>Available</th>\n      <th class="actions">Actions</th>\n    </tr>\n  </thead>\n  <tbody>\n  </tbody>\n</table>\n';});
 
-define('text!templates/templates-row.handlebars',[],function () { return '<tr data-source="{{source}}" data-ddoc-id="{{ddoc_id}}">\n  <td>\n    <div class="name">\n      {{#if dashicon}}\n      <img class="icon" alt="Icon" src="{{dashicon}}" />\n      {{else}}\n      <img class="icon" alt="Icon" src="img/icons/default_22.png" />\n      {{/if}}\n      {{ddoc_id}}\n    </div>\n  </td>\n  <td class="source" style="color: #999">\n    {{source}}\n  </td>\n  <td>\n    {{#if installed.dashboard.version}}\n      {{installed.dashboard.version}}\n    {{else}}\n      --\n    {{/if}}\n  </td>\n  <td>\n    {{remote.dashboard.version}}\n  </td>\n  <td class="actions">\n    {{#if installed}}\n      <a class="btn template-uninstall-btn"><i class="icon-trash"></i> Uninstall</a>\n      <a class="btn template-create-btn"><i class="icon-briefcase"></i> Create Project</a>\n    {{else}}\n      <a class="btn template-install-btn">\n        <i class="icon-download"></i> Install\n      </a>\n    {{/if}}\n  </td>\n</tr>\n';});
+define('text!templates/templates-row.handlebars',[],function () { return '<tr data-source="{{doc.source}}"\n    data-ddoc-id="{{doc.ddoc_id}}"\n    {{#if upgradable}}class="upgradable"{{/if}}>\n\n  <td>\n    <div class="name">\n      {{#if doc.dashicon}}\n        <img class="icon" alt="Icon" src="{{doc.dashicon}}" />\n      {{else}}\n        <img class="icon" alt="Icon" src="img/icons/default_22.png" />\n      {{/if}}\n      {{doc.ddoc_id}}\n    </div>\n  </td>\n\n  <td class="source" style="color: #999">\n    {{doc.source}}\n  </td>\n\n  <td class="installed">\n    {{#if doc.installed.dashboard.version}}\n      {{doc.installed.dashboard.version}}\n    {{else}}\n      --\n    {{/if}}\n  </td>\n\n  <td class="available">\n    {{doc.remote.dashboard.version}}\n  </td>\n\n  <td class="actions">\n    {{#if doc.installed}}\n      <a class="btn template-uninstall-btn">\n        <i class="icon-trash"></i> Uninstall\n      </a>\n      {{#if upgradable}}\n        <a class="btn template-upgrade-btn">\n          <i class="icon-circle-arrow-up"></i> Upgrade\n        </a>\n      {{/if}}\n      <a class="btn template-create-btn">\n        <i class="icon-briefcase"></i> Create Project\n      </a>\n    {{else}}\n      <a class="btn template-install-btn">\n        <i class="icon-download"></i> Install\n      </a>\n    {{/if}}\n  </td>\n\n</tr>\n';});
 
 define('text!templates/templates-create-project-modal.handlebars',[],function () { return '<div class="modal hide" id="create-project-modal">\n  <div class="modal-header">\n    <button type="button" class="close" data-dismiss="modal">×</button>\n    <h3>Create project</h3>\n  </div>\n  <div class="modal-body">\n    <form id="create-project-form" class="form-horizontal">\n      <fieldset>\n        <div class="control-group">\n          <label class="control-label" for="input-project-template">Template</label>\n          <div class="controls">\n            <span class="template">{{{template_td}}}</span>\n          </div>\n        </div>\n        <div class="control-group">\n          <label class="control-label" for="input-project-name">Name</label>\n          <div class="controls">\n            <input type="text" class="input-xlarge" id="input-project-name"\n                   value="{{db_name}}">\n          </div>\n        </div>\n      </fieldset>\n    </form>\n  </div>\n  <div class="modal-footer">\n    <a href="#" class="btn" data-dismiss="modal">Close</a>\n    <a href="#" class="btn btn-primary">Create</a>\n  </div>\n</div>\n';});
 
@@ -20107,7 +20107,7 @@ function (exports, require, $, _) {
 
             var progress = $('<div class="progress" />');
             var bar = $('<div class="bar" />').appendTo(progress);
-            var btn = $(this).replaceWith(progress);
+            $(this).parents('td').html(progress);
 
             var installer = templates.$install(
                 doc.source, doc.ddoc_id, function (err, tdoc) {
@@ -20116,7 +20116,7 @@ function (exports, require, $, _) {
                         return console.error(err);
                     }
                     var fn = function () {
-                        progress.replaceWith(btn);
+                        //progress.replaceWith(btn);
                         // redraw row
                         tr.replaceWith( exports.renderRow(tdoc) );
                     };
@@ -20154,7 +20154,14 @@ function (exports, require, $, _) {
     };
 
     exports.renderRow = function (doc) {
-        var tr = $(require('hbt!../../templates/templates-row')(doc));
+        var tr = $(require('hbt!../../templates/templates-row')({
+            doc: doc,
+            upgradable: doc.installed &&
+                doc.installed.dashboard.version < doc.remote.dashboard.version
+        }));
+        $('.template-upgrade-btn', tr).click(
+            exports.$doInstallTemplate(tr, doc)
+        );
         $('.template-install-btn', tr).click(
             exports.$doInstallTemplate(tr, doc)
         );

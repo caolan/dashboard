@@ -7822,3 +7822,10 @@ body {
 .center-form .form-actions {
   margin-bottom: 0;
 }
+.table-templates tr.upgradable td.available {
+  font-weight: bold;
+  color: #52ba44;
+}
+.table-templates tr.upgradable td.installed {
+  color: #d73d3d;
+}

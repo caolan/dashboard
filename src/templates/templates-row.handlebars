@@ -1,35 +1,52 @@
-<tr data-source="{{source}}" data-ddoc-id="{{ddoc_id}}">
+<tr data-source="{{doc.source}}"
+    data-ddoc-id="{{doc.ddoc_id}}"
+    {{#if upgradable}}class="upgradable"{{/if}}>
+
   <td>
     <div class="name">
-      {{#if dashicon}}
-      <img class="icon" alt="Icon" src="{{dashicon}}" />
+      {{#if doc.dashicon}}
+        <img class="icon" alt="Icon" src="{{doc.dashicon}}" />
       {{else}}
-      <img class="icon" alt="Icon" src="img/icons/default_22.png" />
+        <img class="icon" alt="Icon" src="img/icons/default_22.png" />
       {{/if}}
-      {{ddoc_id}}
+      {{doc.ddoc_id}}
     </div>
   </td>
+
   <td class="source" style="color: #999">
-    {{source}}
+    {{doc.source}}
   </td>
-  <td>
-    {{#if installed.dashboard.version}}
-      {{installed.dashboard.version}}
+
+  <td class="installed">
+    {{#if doc.installed.dashboard.version}}
+      {{doc.installed.dashboard.version}}
     {{else}}
       --
     {{/if}}
   </td>
-  <td>
-    {{remote.dashboard.version}}
+
+  <td class="available">
+    {{doc.remote.dashboard.version}}
   </td>
+
   <td class="actions">
-    {{#if installed}}
-      <a class="btn template-uninstall-btn"><i class="icon-trash"></i> Uninstall</a>
-      <a class="btn template-create-btn"><i class="icon-briefcase"></i> Create Project</a>
+    {{#if doc.installed}}
+      <a class="btn template-uninstall-btn">
+        <i class="icon-trash"></i> Uninstall
+      </a>
+      {{#if upgradable}}
+        <a class="btn template-upgrade-btn">
+          <i class="icon-circle-arrow-up"></i> Upgrade
+        </a>
+      {{/if}}
+      <a class="btn template-create-btn">
+        <i class="icon-briefcase"></i> Create Project
+      </a>
     {{else}}
       <a class="btn template-install-btn">
         <i class="icon-download"></i> Install
       </a>
     {{/if}}
   </td>
+
 </tr>
