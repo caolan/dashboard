@@ -22,12 +22,20 @@
     {{dashboard.version}}
   </td>
   <td class="admins">
-    {{security.admins.names}}
-    {{security.admins.roles}}
+    {{#if ../no_admins}}
+      <span class="label">Admins only</span>
+    {{else}}
+      {{security.admins.names}}
+      {{security.admins.roles}}
+    {{/if}}
   </td>
   <td class="members">
-    {{security.members.names}}
-    {{security.members.roles}}
+    {{#if ../is_public}}
+      <span class="label label-info">Public</span>
+    {{else}}
+      {{security.members.names}}
+      {{security.members.roles}}
+    {{/if}}
   </td>
   <!--
   <td class="actions">

@@ -17451,21 +17451,30 @@ function (exports, _) {
         return false;
     };
 
-    exports.isUnsecured = function (p) {
+    exports.noAdminsDefined = function (p) {
         var s = p.security;
-        if (!s.admins && !s.members) {
+        if (!s.admins) {
             return true;
         }
         return (
             s.admins.names.length === 0 &&
-            s.admins.roles.length === 0 &&
+            s.admins.roles.length === 0
+        );
+    };
+
+    exports.isPublic = function (p) {
+        var s = p.security;
+        if (!s.members) {
+            return true;
+        }
+        return (
             s.members.names.length === 0 &&
             s.members.roles.length === 0
         );
     };
 
     exports.isMember = function (userCtx, p) {
-        if (exports.isUnsecured(p) || exports.isAdmin(userCtx, p)) {
+        if (exports.isPublic(p) || exports.isAdmin(userCtx, p)) {
             return true;
         }
         var members = p.security.members;
@@ -19381,9 +19390,9 @@ define('text/text',['module'], function (module) {
 
 define('text', ['text/text'], function (main) { return main; });
 
-define('text!templates/projects.handlebars',[],function () { return '<div id="main">\n  <div class="container-fluid">\n\n    <div class="btn-toolbar">\n      <div class="btn-group">\n        <a id="projects-add-btn" class="btn btn-success" href="#/templates">\n          <i class="icon-plus-sign"></i> Create\n        </a>\n      </div>\n      <div class="btn-group">\n        <a href="#" class="btn delete-btn"><i class="icon-trash"></i> Delete</a>\n        <a href="#" class="btn upgrade-btn"><i class="icon-circle-arrow-up"></i> Upgrade</a>\n      </div>\n      <div class="btn-group">\n        <a href="#" class="btn share-btn"><i class="icon-user"></i> Share</a>\n        <a href="#" class="btn data-sync-btn"><i class="icon-random"></i> Data sync</a>\n      </div>\n      <div class="btn-group">\n        <a id="projects-refresh-btn" class="btn" href="#">\n          <i class="icon-refresh"></i> Refresh\n        </a>\n      </div>\n    </div>\n\n    <table class="table table-striped table-projects">\n      <thead>\n      <tr>\n        <th class="select"><input type="checkbox" /></th> <!-- select -->\n        <th>Name</th>\n        <th>Template</th>\n        <th>Version</th>\n        <th>Admins</th>\n        <th>Members</th>\n        <!--<th></th>--> <!-- actions -->\n      </tr>\n      </thead>\n      <tbody>\n      </tbody>\n    </table>\n\n  </div>\n</div>\n';});
+define('text!templates/projects.handlebars',[],function () { return '<div id="main">\n  <div class="container-fluid">\n\n    <div class="btn-toolbar">\n      <div class="btn-group">\n        <a id="projects-add-btn" class="btn btn-success" href="#/templates">\n          <i class="icon-plus-sign"></i> Create\n        </a>\n      </div>\n      <div class="btn-group">\n        <a href="#" class="btn delete-btn"><i class="icon-trash"></i> Delete</a>\n        <a href="#" class="btn upgrade-btn"><i class="icon-circle-arrow-up"></i> Upgrade</a>\n      </div>\n      <div class="btn-group">\n        <a href="#" class="btn share-btn"><i class="icon-user"></i> Share</a>\n        <a href="#" class="btn data-sync-btn"><i class="icon-random"></i> Data sync</a>\n      </div>\n      <div class="btn-group">\n        <a id="projects-refresh-btn" class="btn" href="#">\n          <i class="icon-refresh"></i> Refresh\n        </a>\n      </div>\n    </div>\n\n    <table class="table table-striped table-projects">\n      <thead>\n      <tr>\n        <th class="select"><input type="checkbox" /></th> <!-- select -->\n        <th>Name</th>\n        <th>Template</th>\n        <th>Version</th>\n        <th>Owner(s)</th>\n        <th>Members</th>\n        <!--<th></th>--> <!-- actions -->\n      </tr>\n      </thead>\n      <tbody>\n      </tbody>\n    </table>\n\n  </div>\n</div>\n';});
 
-define('text!templates/projects-row.handlebars',[],function () { return '{{#with project}}\n<tr>\n  <td class="select">\n    <input type="checkbox" />\n  </td>\n  <td class="name">\n    <a title="{{db}}/{{name}}" href="{{url}}">\n      {{#if dashicon}}\n      <img class="icon" alt="Icon" src="{{dashicon}}" />\n      {{else}}\n      <img class="icon" alt="Icon" src="img/icons/default_22.png" />\n      {{/if}}\n    </a>\n    <a title="{{db}}/{{name}}" href="{{url}}">\n      {{db}}\n    </a>\n  </td>\n  <td class="template">\n    {{#if title}}{{title}}{{else}}{{name}}{{/if}}\n  </td>\n  <td class="version">\n    {{dashboard.version}}\n  </td>\n  <td class="admins">\n    {{security.admins.names}}\n    {{security.admins.roles}}\n  </td>\n  <td class="members">\n    {{security.members.names}}\n    {{security.members.roles}}\n  </td>\n  <!--\n  <td class="actions">\n    {{#if ../is_admin}}\n      <a href="#" class="btn delete-btn"><i class="icon-trash"></i> Delete</a>\n      <a href="#" class="btn permissions-btn"><i class="icon-key"></i> Permissions</a>\n    {{/if}}\n  </td>\n  -->\n</tr>\n{{/with}}\n';});
+define('text!templates/projects-row.handlebars',[],function () { return '{{#with project}}\n<tr>\n  <td class="select">\n    <input type="checkbox" />\n  </td>\n  <td class="name">\n    <a title="{{db}}/{{name}}" href="{{url}}">\n      {{#if dashicon}}\n      <img class="icon" alt="Icon" src="{{dashicon}}" />\n      {{else}}\n      <img class="icon" alt="Icon" src="img/icons/default_22.png" />\n      {{/if}}\n    </a>\n    <a title="{{db}}/{{name}}" href="{{url}}">\n      {{db}}\n    </a>\n  </td>\n  <td class="template">\n    {{#if title}}{{title}}{{else}}{{name}}{{/if}}\n  </td>\n  <td class="version">\n    {{dashboard.version}}\n  </td>\n  <td class="admins">\n    {{#if ../no_admins}}\n      <span class="label">Admins only</span>\n    {{else}}\n      {{security.admins.names}}\n      {{security.admins.roles}}\n    {{/if}}\n  </td>\n  <td class="members">\n    {{#if ../is_public}}\n      <span class="label label-info">Public</span>\n    {{else}}\n      {{security.members.names}}\n      {{security.members.roles}}\n    {{/if}}\n  </td>\n  <!--\n  <td class="actions">\n    {{#if ../is_admin}}\n      <a href="#" class="btn delete-btn"><i class="icon-trash"></i> Delete</a>\n      <a href="#" class="btn permissions-btn"><i class="icon-key"></i> Permissions</a>\n    {{/if}}\n  </td>\n  -->\n</tr>\n{{/with}}\n';});
 
 define('text!templates/projects-delete-modal.handlebars',[],function () { return '<div class="modal hide" id="project-delete-modal">\n\n  <div class="modal-header">\n    <button type="button" class="close" data-dismiss="modal">×</button>\n    <h3>Delete project</h3>\n  </div>\n\n  <div class="modal-body">\n    <form id="create-project-form" class="form-vertical">\n      <fieldset>\n        <div class="control-group">\n          <div class="controls">\n            <label class="radio">\n              <input type="radio" name="deleteRadios" id="deleteRadios1" value="all" checked />\n              Delete project and all associated data in the database.\n            </label>\n            <label class="radio">\n              <input type="radio" name="deleteRadios" id="deleteRadios2" value="template" />\n              Clear project template only\n            </label>\n          </div>\n        </div>\n      </fieldset>\n    </form>\n  </div>\n\n  <div class="modal-footer">\n    <a href="#" class="btn" data-dismiss="modal">Cancel</a>\n    <a href="#" class="btn btn-danger">Delete</a>\n  </div>\n\n</div>\n';});
 
@@ -19468,6 +19477,8 @@ function (exports, require, $, _) {
     exports.renderRow = function (userCtx, p) {
         var el = $(require('hbt!../../templates/projects-row')({
             is_admin: p_collection.isAdmin(userCtx, p),
+            is_public: p_collection.isPublic(p),
+            no_admins: p_collection.noAdminsDefined(p),
             project: p
         }));
         $('.actions a.delete-btn', el).click(function (ev) {

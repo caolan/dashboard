@@ -79,6 +79,8 @@ function (exports, require, $, _) {
     exports.renderRow = function (userCtx, p) {
         var el = $(require('hbt!../../templates/projects-row')({
             is_admin: p_collection.isAdmin(userCtx, p),
+            is_public: p_collection.isPublic(p),
+            no_admins: p_collection.noAdminsDefined(p),
             project: p
         }));
         $('.actions a.delete-btn', el).click(function (ev) {

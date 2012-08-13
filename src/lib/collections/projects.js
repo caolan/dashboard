@@ -20,21 +20,30 @@ function (exports, _) {
         return false;
     };
 
-    exports.isUnsecured = function (p) {
+    exports.noAdminsDefined = function (p) {
         var s = p.security;
-        if (!s.admins && !s.members) {
+        if (!s.admins) {
             return true;
         }
         return (
             s.admins.names.length === 0 &&
-            s.admins.roles.length === 0 &&
+            s.admins.roles.length === 0
+        );
+    };
+
+    exports.isPublic = function (p) {
+        var s = p.security;
+        if (!s.members) {
+            return true;
+        }
+        return (
             s.members.names.length === 0 &&
             s.members.roles.length === 0
         );
     };
 
     exports.isMember = function (userCtx, p) {
-        if (exports.isUnsecured(p) || exports.isAdmin(userCtx, p)) {
+        if (exports.isPublic(p) || exports.isAdmin(userCtx, p)) {
             return true;
         }
         var members = p.security.members;
