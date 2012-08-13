@@ -28,18 +28,8 @@
   </td>
   <td class="actions">
     {{#if ../is_admin}}
-      <div class="btn-group">
-        <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
-          <i class="icon-cog"></i>
-          <span class="caret"></span>
-        </a>
-        <ul class="dropdown-menu">
-          <!--<li><a href="#">Upgrade</a></li>-->
-          <li><a href="#" class="permissions-btn">Permissions</a></li>
-          <li class="divider"></li>
-          <li><a href="#" class="delete-btn">Delete</a></li>
-        </ul>
-      </div>
+      <a href="#" class="btn delete-btn"><i class="icon-trash"></i> Delete</a>
+      <a href="#" class="btn permissions-btn"><i class="icon-key"></i> Permissions</a>
     {{/if}}
   </td>
 </tr>
