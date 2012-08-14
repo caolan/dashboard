@@ -50,18 +50,18 @@ function (exports, require, $, _) {
         $('.btn-primary', m).focus();
     };
 
-    exports.$showProgressModal = function () {
+    exports.$showProgressModal = function (title) {
         var tmpl = require(
             'hbt!../../templates/projects-progress-modal'
         );
-        vutils.$showModal(tmpl({}));
+        vutils.$showModal(tmpl({title: title}));
     };
 
     exports.$submitCreateProject = function (t) {
         return function (ev) {
             ev.preventDefault();
             var name = $('#input-project-name', m).val();
-            var m = exports.$showProgressModal();
+            var m = exports.$showProgressModal('Creating project...');
 
             var bar = $('.progress .bar', m);
             var creator = projects.$create(
@@ -229,25 +229,21 @@ function (exports, require, $, _) {
     exports.$doRefresh = function (cfg, userCtx) {
         return function (ev) {
             ev.preventDefault();
-            var that = this;
 
-            $(this).button('loading');
-            $('#admin-bar-status').html('');
-            $('#main').html('');
+            var m = exports.$showProgressModal('Scanning for projects...');
+            var bar = $('.progress .bar', m);
 
             var refresher = projects.$refresh(function (err) {
                 if (err) {
                     // TODO: add error alert box to status area
                     return console.error(err);
                 }
-
-                var bar = $('#admin-bar-status .progress .bar');
                 var fn = function () {
-                    $('#admin-bar-status .progress').fadeOut(function () {
-                        var ps = projects.$get();
-                        $('#content').html( exports.render(cfg, userCtx, ps));
-                    });
-                    $(that).button('reset');
+                    // re-render project list
+                    var ps = projects.$get();
+                    $('#content').html( exports.render(cfg, userCtx, ps));
+
+                    vutils.$clearModals();
                 };
                 // TODO: support browsers that don't provide transitionEnd!
                 bar.one('transitionEnd', fn);
@@ -257,13 +253,8 @@ function (exports, require, $, _) {
                 bar.one('webkitTransitionEnd', fn);  // webkit
             });
 
-            $('#admin-bar-status').html(
-                '<div class="progress"><div class="bar"></div></div>'
-            );
             refresher.on('progress', function (value) {
-                $('#admin-bar-status .progress .bar').css({
-                    width: value + '%'
-                });
+                bar.css({width: value + '%'});
             });
             return false;
         };

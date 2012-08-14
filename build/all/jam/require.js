@@ -19438,7 +19438,7 @@ define('text!templates/projects-template-modal-list.handlebars',[],function () {
 
 define('text!templates/projects-create-modal.handlebars',[],function () { return '<div class="modal hide" id="create-project-modal">\n  <div class="modal-header">\n    <button type="button" class="close" data-dismiss="modal">×</button>\n    <h3>Create project</h3>\n  </div>\n  <div class="modal-body">\n    <form id="create-project-form" class="form-horizontal">\n      <fieldset>\n        <div class="control-group">\n          <label class="control-label" for="input-project-template">Template</label>\n          <div class="controls">\n            <img class="icon" src="{{template.dashicon}}" />\n            <span class="name">{{{template.ddoc_id}}}</span>\n          </div>\n        </div>\n        <div class="control-group">\n          <label class="control-label" for="input-project-name">Name</label>\n          <div class="controls">\n            <input type="text" class="input-xlarge" id="input-project-name"\n                   value="{{db_name}}">\n          </div>\n        </div>\n      </fieldset>\n    </form>\n  </div>\n  <div class="modal-footer">\n    <a href="#" class="btn" data-dismiss="modal">Close</a>\n    <a href="#" class="btn btn-primary">Create</a>\n  </div>\n</div>\n';});
 
-define('text!templates/projects-progress-modal.handlebars',[],function () { return '<div class="modal hide" id="create-project-modal">\n  <div class="modal-header">\n    <button type="button" class="close" data-dismiss="modal">×</button>\n    <h3>Creating project...</h3>\n  </div>\n  <div class="modal-body">\n    <div class="progress">\n      <div class="bar"></div>\n    </div>\n  </div>\n  <div class="modal-footer">\n    <a href="#" class="btn" data-dismiss="modal">Close</a>\n    <a href="#" class="btn btn-primary disabled">loading</a>\n  </div>\n</div>\n';});
+define('text!templates/projects-progress-modal.handlebars',[],function () { return '<div class="modal hide" id="create-project-modal">\n  <div class="modal-header">\n    <button type="button" class="close" data-dismiss="modal">×</button>\n    <h3>{{title}}</h3>\n  </div>\n  <div class="modal-body">\n    <div class="progress">\n      <div class="bar"></div>\n    </div>\n  </div>\n  <div class="modal-footer">\n    <a href="#" class="btn" data-dismiss="modal">Close</a>\n    <a href="#" class="btn btn-primary disabled">loading</a>\n  </div>\n</div>\n';});
 
 define('text!templates/projects-done-modal.handlebars',[],function () { return '<div class="modal hide" id="done-project-modal">\n  <div class="modal-header">\n    <button type="button" class="close" data-dismiss="modal">×</button>\n    <h3>Done!</h3>\n  </div>\n  <div class="modal-body">\n    <a class="project-url" href="{{url}}">{{url}}</a>\n  </div>\n  <div class="modal-footer">\n    <a href="#" class="btn" data-dismiss="modal">Close</a>\n    <a href="{{url}}" class="btn btn-primary">Open</a>\n  </div>\n</div>\n';});
 
@@ -19494,18 +19494,18 @@ function (exports, require, $, _) {
         $('.btn-primary', m).focus();
     };
 
-    exports.$showProgressModal = function () {
+    exports.$showProgressModal = function (title) {
         var tmpl = require(
             'hbt!../../templates/projects-progress-modal'
         );
-        vutils.$showModal(tmpl({}));
+        vutils.$showModal(tmpl({title: title}));
     };
 
     exports.$submitCreateProject = function (t) {
         return function (ev) {
             ev.preventDefault();
             var name = $('#input-project-name', m).val();
-            var m = exports.$showProgressModal();
+            var m = exports.$showProgressModal('Creating project...');
 
             var bar = $('.progress .bar', m);
             var creator = projects.$create(
@@ -19673,25 +19673,21 @@ function (exports, require, $, _) {
     exports.$doRefresh = function (cfg, userCtx) {
         return function (ev) {
             ev.preventDefault();
-            var that = this;
 
-            $(this).button('loading');
-            $('#admin-bar-status').html('');
-            $('#main').html('');
+            var m = exports.$showProgressModal('Scanning for projects...');
+            var bar = $('.progress .bar', m);
 
             var refresher = projects.$refresh(function (err) {
                 if (err) {
                     // TODO: add error alert box to status area
                     return console.error(err);
                 }
-
-                var bar = $('#admin-bar-status .progress .bar');
                 var fn = function () {
-                    $('#admin-bar-status .progress').fadeOut(function () {
-                        var ps = projects.$get();
-                        $('#content').html( exports.render(cfg, userCtx, ps));
-                    });
-                    $(that).button('reset');
+                    // re-render project list
+                    var ps = projects.$get();
+                    $('#content').html( exports.render(cfg, userCtx, ps));
+
+                    vutils.$clearModals();
                 };
                 // TODO: support browsers that don't provide transitionEnd!
                 bar.one('transitionEnd', fn);
@@ -19701,13 +19697,8 @@ function (exports, require, $, _) {
                 bar.one('webkitTransitionEnd', fn);  // webkit
             });
 
-            $('#admin-bar-status').html(
-                '<div class="progress"><div class="bar"></div></div>'
-            );
             refresher.on('progress', function (value) {
-                $('#admin-bar-status .progress .bar').css({
-                    width: value + '%'
-                });
+                bar.css({width: value + '%'});
             });
             return false;
         };
