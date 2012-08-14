@@ -9,10 +9,7 @@ define([
     '../remote/projects',
     'hbt!../../templates/templates',
     'hbt!../../templates/templates-list',
-    'hbt!../../templates/templates-row',
-    'hbt!../../templates/templates-create-project-modal',
-    'hbt!../../templates/templates-project-progress-modal',
-    'hbt!../../templates/templates-done-project-modal'
+    'hbt!../../templates/templates-row'
 ],
 function (exports, require, $, _) {
 
@@ -27,65 +24,6 @@ function (exports, require, $, _) {
         var el = $(tmpl({}));
         $('#templates-refresh-btn', el).click( exports.$doRefresh );
         return el;
-    };
-
-    exports.$showDoneModal = function (url) {
-        var tmpl = require('hbt!../../templates/templates-done-project-modal');
-        var m = vutils.$showModal(tmpl({ url: url }));
-        // so if you press enter you go to desired url
-        $('.btn-primary', m).focus();
-    };
-
-    exports.$showProgressModal = function () {
-        var tmpl = require(
-            'hbt!../../templates/templates-project-progress-modal'
-        );
-        vutils.$showModal(tmpl({}));
-    };
-
-    exports.$submitCreateProject = function (ddoc_id) {
-        return function (ev) {
-            ev.preventDefault();
-            var name = $('#input-project-name', m).val();
-            var m = exports.$showProgressModal();
-
-            var bar = $('.progress .bar', m);
-            var creator = projects.$create(name, ddoc_id, function (err, doc) {
-                if (err) {
-                    exports.$showProjectModal(ddoc_id, name);
-                    vutils.showError($('.modal-body', m), err);
-                    return;
-                }
-                var fn = function () {
-                    exports.$showDoneModal(doc.url);
-                };
-                bar.one('transitionEnd', fn);
-                bar.one('oTransitionEnd', fn);       // opera
-                bar.one('msTransitionEnd', fn);      // ie
-                bar.one('transitionend', fn);        // mozilla
-                bar.one('webkitTransitionEnd', fn);  // webkit
-            });
-            creator.on('progress', function (value) {
-                bar.css({width: value + '%'});
-            });
-            return false;
-        };
-    };
-
-    exports.$showProjectModal = function (ddoc_id, db_name) {
-        var tmpl = require(
-            'hbt!../../templates/templates-create-project-modal'
-        );
-        var html = tmpl({
-            ddoc_id: ddoc_id,
-            db_name: db_name || '',
-            template_td: $('tr[data-ddoc-id=' + ddoc_id + '] .name').html()
-        });
-        var m = vutils.$showModal(html);
-
-        $('#input-project-name', m).focus();
-        $('.btn-primary', m).click( exports.$submitCreateProject(ddoc_id) );
-        $('form', m).submit( exports.$submitCreateProject(ddoc_id) );
     };
 
     exports.$doInstallTemplate = function (tr, doc) {
@@ -158,7 +96,7 @@ function (exports, require, $, _) {
         );
         $('.template-create-btn', tr).click(function (ev) {
             ev.preventDefault();
-            exports.$showProjectModal(doc.ddoc_id);
+            // TODO
             return false;
         });
         return tr;

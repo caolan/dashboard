@@ -17499,6 +17499,42 @@ function (exports, _) {
 
 });
 
+define('lib/collections/templates',['exports'], function (exports) {
+
+    /*
+    exports.getTitle = function (doc) {
+        if (doc.local && doc.local.dashboard && doc.local.dashboard.title) {
+            return doc.local.dashboard.title;
+        }
+        if (doc.remote && doc.remote.dashboard && doc.remote.dashboard.title) {
+            return doc.remote.dashboard.title;
+        }
+        return null;
+    };
+    */
+
+    exports.getIcon = function (doc, size) {
+        if (doc.local && doc.local.dashboard && doc.local.dashboard.icons &&
+            doc.local.dashboard.icons[size]) {
+            return 'api/' + doc.ddoc_id + '/' + doc.local.dashboard.icons[size];
+        }
+        if (doc.remote && doc.remote.dashboard && doc.remote.dashboard.icons &&
+            doc.remote.dashboard.icons[size]) {
+            return doc.source.replace(/\/$/, '') +
+                '/' + doc.ddoc_id + '/' + doc.remote.dashboard.icons[size];
+        }
+        return null;
+    };
+
+    exports.getDashIcon = function (doc) {
+        if (doc.dashicon) {
+            return doc.dashicon;
+        }
+        return exports.getIcon(doc, 22);
+    };
+
+});
+
 define('handlebars', [], function () {
 
     // lib/handlebars/base.js
@@ -19390,34 +19426,52 @@ define('text/text',['module'], function (module) {
 
 define('text', ['text/text'], function (main) { return main; });
 
-define('text!templates/projects.handlebars',[],function () { return '<div id="main">\n  <div class="container-fluid">\n\n    <div class="btn-toolbar">\n      <div class="btn-group">\n        <a id="projects-add-btn" class="btn btn-success" href="#/templates">\n          <i class="icon-plus-sign"></i> Create\n        </a>\n      </div>\n      <div class="btn-group">\n        <a href="#" class="btn delete-btn"><i class="icon-trash"></i> Delete</a>\n        <a href="#" class="btn upgrade-btn"><i class="icon-circle-arrow-up"></i> Upgrade</a>\n      </div>\n      <div class="btn-group">\n        <a href="#" class="btn share-btn"><i class="icon-user"></i> Share</a>\n        <a href="#" class="btn data-sync-btn"><i class="icon-random"></i> Data sync</a>\n      </div>\n      <div class="btn-group">\n        <a id="projects-refresh-btn" class="btn" href="#">\n          <i class="icon-refresh"></i> Refresh\n        </a>\n      </div>\n    </div>\n\n    <table class="table table-striped table-projects">\n      <thead>\n      <tr>\n        <th class="select"><input type="checkbox" /></th> <!-- select -->\n        <th>Name</th>\n        <th>Template</th>\n        <th>Version</th>\n        <th>Owner(s)</th>\n        <th>Members</th>\n        <!--<th></th>--> <!-- actions -->\n      </tr>\n      </thead>\n      <tbody>\n      </tbody>\n    </table>\n\n  </div>\n</div>\n';});
+define('text!templates/projects.handlebars',[],function () { return '<div id="main">\n  <div class="container-fluid">\n\n    <div class="btn-toolbar">\n      <div class="btn-group">\n        <a id="projects-add-btn" class="btn btn-success" href="#/templates">\n          <i class="icon-plus-sign"></i> Create\n        </a>\n      </div>\n      <div class="btn-group">\n        <a href="#" class="btn delete-btn"><i class="icon-trash"></i> Delete</a>\n        <a href="#" class="btn upgrade-btn"><i class="icon-circle-arrow-up"></i> Upgrade</a>\n        <a href="#" class="btn compact-btn"><i class="icon-resize-small"></i> Compact</a>\n      </div>\n      <div class="btn-group">\n        <a href="#" class="btn share-btn"><i class="icon-user"></i> Share</a>\n        <a href="#" class="btn data-sync-btn"><i class="icon-random"></i> Data sync</a>\n      </div>\n      <div class="btn-group">\n        <a id="projects-refresh-btn" class="btn" href="#">\n          <i class="icon-refresh"></i> Refresh\n        </a>\n      </div>\n    </div>\n\n    <table class="table table-striped table-projects">\n      <thead>\n      <tr>\n        <th class="select"><input type="checkbox" /></th> <!-- select -->\n        <th>Name</th>\n        <th>Template</th>\n        <th>Version</th>\n        <th>Owner(s)</th>\n        <th>Members</th>\n        <!--<th></th>--> <!-- actions -->\n      </tr>\n      </thead>\n      <tbody>\n      </tbody>\n    </table>\n\n  </div>\n</div>\n';});
 
 define('text!templates/projects-row.handlebars',[],function () { return '{{#with project}}\n<tr>\n  <td class="select">\n    <input type="checkbox" />\n  </td>\n  <td class="name">\n    <a title="{{db}}/{{name}}" href="{{url}}">\n      {{#if dashicon}}\n      <img class="icon" alt="Icon" src="{{dashicon}}" />\n      {{else}}\n      <img class="icon" alt="Icon" src="img/icons/default_22.png" />\n      {{/if}}\n    </a>\n    <a title="{{db}}/{{name}}" href="{{url}}">{{db}}</a>\n  </td>\n  <td class="template">\n    {{#if title}}{{title}}{{else}}{{name}}{{/if}}\n  </td>\n  <td class="version">\n    {{dashboard.version}}\n  </td>\n  <td class="admins">\n    {{#if ../no_admins}}\n      <span class="label">Admins only</span>\n    {{else}}\n      {{security.admins.names}}\n      {{security.admins.roles}}\n    {{/if}}\n  </td>\n  <td class="members">\n    {{#if ../is_public}}\n      <span class="label label-info">Public</span>\n    {{else}}\n      {{security.members.names}}\n      {{security.members.roles}}\n    {{/if}}\n  </td>\n  <!--\n  <td class="actions">\n    {{#if ../is_admin}}\n      <a href="#" class="btn delete-btn"><i class="icon-trash"></i> Delete</a>\n      <a href="#" class="btn permissions-btn"><i class="icon-key"></i> Permissions</a>\n    {{/if}}\n  </td>\n  -->\n</tr>\n{{/with}}\n';});
 
 define('text!templates/projects-delete-modal.handlebars',[],function () { return '<div class="modal hide" id="project-delete-modal">\n\n  <div class="modal-header">\n    <button type="button" class="close" data-dismiss="modal">×</button>\n    <h3>Delete project</h3>\n  </div>\n\n  <div class="modal-body">\n    <form id="create-project-form" class="form-vertical">\n      <fieldset>\n        <div class="control-group">\n          <div class="controls">\n            <label class="radio">\n              <input type="radio" name="deleteRadios" id="deleteRadios1" value="all" checked />\n              Delete project and all associated data in the database.\n            </label>\n            <label class="radio">\n              <input type="radio" name="deleteRadios" id="deleteRadios2" value="template" />\n              Clear project template only\n            </label>\n          </div>\n        </div>\n      </fieldset>\n    </form>\n  </div>\n\n  <div class="modal-footer">\n    <a href="#" class="btn" data-dismiss="modal">Cancel</a>\n    <a href="#" class="btn btn-danger">Delete</a>\n  </div>\n\n</div>\n';});
+
+define('text!templates/projects-template-modal.handlebars',[],function () { return '<div class="modal hide" id="projects-template-modal">\n  <div class="modal-header">\n    <button type="button" class="close" data-dismiss="modal">×</button>\n    <h3>Select template</h3>\n  </div>\n  <div class="modal-body">\n    <p>Loading...</p>\n  </div>\n  <div class="modal-footer">\n    <a href="#" class="btn" data-dismiss="modal">Cancel</a>\n  </div>\n</div>\n';});
+
+define('text!templates/projects-template-modal-list.handlebars',[],function () { return '<ul class="iconlist">\n  {{#each templates}}\n    <li rel="{{ddoc_id}}">\n      <img class="icon" src="{{icon}}" />\n      <div class="name">{{ddoc_id}}</div>\n    </li>\n  {{/each}}\n</ul>\n';});
+
+define('text!templates/projects-create-modal.handlebars',[],function () { return '<div class="modal hide" id="create-project-modal">\n  <div class="modal-header">\n    <button type="button" class="close" data-dismiss="modal">×</button>\n    <h3>Create project</h3>\n  </div>\n  <div class="modal-body">\n    <form id="create-project-form" class="form-horizontal">\n      <fieldset>\n        <div class="control-group">\n          <label class="control-label" for="input-project-template">Template</label>\n          <div class="controls">\n            <img class="icon" src="{{template.dashicon}}" />\n            <span class="name">{{{template.ddoc_id}}}</span>\n          </div>\n        </div>\n        <div class="control-group">\n          <label class="control-label" for="input-project-name">Name</label>\n          <div class="controls">\n            <input type="text" class="input-xlarge" id="input-project-name"\n                   value="{{db_name}}">\n          </div>\n        </div>\n      </fieldset>\n    </form>\n  </div>\n  <div class="modal-footer">\n    <a href="#" class="btn" data-dismiss="modal">Close</a>\n    <a href="#" class="btn btn-primary">Create</a>\n  </div>\n</div>\n';});
+
+define('text!templates/projects-progress-modal.handlebars',[],function () { return '<div class="modal hide" id="create-project-modal">\n  <div class="modal-header">\n    <button type="button" class="close" data-dismiss="modal">×</button>\n    <h3>Creating project...</h3>\n  </div>\n  <div class="modal-body">\n    <div class="progress">\n      <div class="bar"></div>\n    </div>\n  </div>\n  <div class="modal-footer">\n    <a href="#" class="btn" data-dismiss="modal">Close</a>\n    <a href="#" class="btn btn-primary disabled">loading</a>\n  </div>\n</div>\n';});
+
+define('text!templates/projects-done-modal.handlebars',[],function () { return '<div class="modal hide" id="done-project-modal">\n  <div class="modal-header">\n    <button type="button" class="close" data-dismiss="modal">×</button>\n    <h3>Done!</h3>\n  </div>\n  <div class="modal-body">\n    <a class="project-url" href="{{url}}">{{url}}</a>\n  </div>\n  <div class="modal-footer">\n    <a href="#" class="btn" data-dismiss="modal">Close</a>\n    <a href="{{url}}" class="btn btn-primary">Open</a>\n  </div>\n</div>\n';});
 
 define('lib/views/projects',[
     'exports',
     'require',
     'jquery',
     'lodash',
+    'couchr',
     './utils',
     '../remote/projects',
     '../remote/settings',
     '../remote/session',
     '../collections/projects',
+    '../collections/templates',
     'hbt!../../templates/projects',
     'hbt!../../templates/projects-row',
-    'hbt!../../templates/projects-delete-modal'
+    'hbt!../../templates/projects-delete-modal',
+    'hbt!../../templates/projects-template-modal',
+    'hbt!../../templates/projects-template-modal-list',
+    'hbt!../../templates/projects-create-modal',
+    'hbt!../../templates/projects-progress-modal',
+    'hbt!../../templates/projects-done-modal'
 ],
 function (exports, require, $, _) {
 
-    var tmpl = require('hbt!../../templates/projects'),
-        projects = require('../remote/projects'),
+    var projects = require('../remote/projects'),
         settings = require('../remote/settings'),
         session = require('../remote/session'),
+        t_collection = require('../collections/templates'),
         p_collection = require('../collections/projects'),
-        vutils = require('./utils');
+        vutils = require('./utils'),
+        couchr = require('couchr');
 
 
     exports.filterProjects = function (cfg, userCtx, ps) {
@@ -19433,6 +19487,113 @@ function (exports, require, $, _) {
         return r;
     };
 
+    exports.$showDoneModal = function (url) {
+        var tmpl = require('hbt!../../templates/projects-done-modal');
+        var m = vutils.$showModal(tmpl({ url: url }));
+        // so if you press enter you go to desired url
+        $('.btn-primary', m).focus();
+    };
+
+    exports.$showProgressModal = function () {
+        var tmpl = require(
+            'hbt!../../templates/projects-progress-modal'
+        );
+        vutils.$showModal(tmpl({}));
+    };
+
+    exports.$submitCreateProject = function (t) {
+        return function (ev) {
+            ev.preventDefault();
+            var name = $('#input-project-name', m).val();
+            var m = exports.$showProgressModal();
+
+            var bar = $('.progress .bar', m);
+            var creator = projects.$create(
+                name, t.ddoc_id, function (err, doc) {
+                    if (err) {
+                        exports.$showCreateModal(t, name);
+                        vutils.showError($('.modal-body', m), err);
+                        return;
+                    }
+                    var fn = function () {
+                        session.$infoCached(function (err, info) {
+                            var cfg = settings.$get().projects;
+                            var ps = projects.$get();
+
+                            // redraw projects list
+                            $('#content').html(
+                                exports.render(cfg, info.userCtx, ps)
+                            );
+
+                            exports.$showDoneModal(doc.url);
+                        });
+                    };
+                    bar.one('transitionEnd', fn);
+                    bar.one('oTransitionEnd', fn);       // opera
+                    bar.one('msTransitionEnd', fn);      // ie
+                    bar.one('transitionend', fn);        // mozilla
+                    bar.one('webkitTransitionEnd', fn);  // webkit
+                }
+            );
+            creator.on('progress', function (value) {
+                bar.css({width: value + '%'});
+            });
+            return false;
+        };
+    };
+
+    exports.$showCreateModal = function (t, db_name) {
+        var tmpl = require(
+            'hbt!../../templates/projects-create-modal'
+        );
+        var html = tmpl({
+            db_name: db_name || '',
+            template: t
+        });
+        var m = vutils.$showModal(html);
+
+        $('#input-project-name', m).focus();
+        $('.btn-primary', m).click( exports.$submitCreateProject(t) );
+        $('form', m).submit( exports.$submitCreateProject(t) );
+    };
+
+    exports.$showTemplateModal = function () {
+        var el = $(require('hbt!../../templates/projects-template-modal')({}));
+        vutils.$showModal(el);
+
+        // fetch template list from couchdb
+        var vurl = 'api/_design/dashboard/_view/templates';
+        couchr.get(vurl, {include_docs: true}, function (err, data) {
+            if (err) {
+                // TODO: show error message to user
+                return console.error(err);
+            }
+            var ts = _.map(data.rows, function (r) {
+                return {
+                    ddoc_id: r.doc.ddoc_id,
+                    icon: t_collection.getIcon(r.doc, 96),
+                    dashicon: t_collection.getDashIcon(r.doc)
+                };
+            });
+            var ul = $(
+                require('hbt!../../templates/projects-template-modal-list')({
+                    templates: ts
+                })
+            );
+            $('li', ul).click(function (ev) {
+                ev.preventDefault();
+                var ddoc_id = $(this).attr('rel');
+                var tmpl = _.detect(ts, function (t) {
+                    return t.ddoc_id === ddoc_id;
+                });
+                exports.$showCreateModal(tmpl);
+                return false;
+            });
+            $('.modal-body', el).html(ul);
+        });
+
+        return el;
+    };
 
     exports.$showDeleteModal = function (p, tr) {
         var el = $(require('hbt!../../templates/projects-delete-modal')({}));
@@ -19492,7 +19653,7 @@ function (exports, require, $, _) {
 
     exports.render = function (cfg, userCtx, ps) {
         ps = exports.filterProjects(cfg, userCtx, ps);
-        var el = $(tmpl({}));
+        var el = $(require('hbt!../../templates/projects')({}));
         _.each(ps, function (p) {
             $('tbody', el).append( exports.renderRow(userCtx, p) );
         });
@@ -19500,6 +19661,11 @@ function (exports, require, $, _) {
         $('#projects-refresh-btn', el).click(
             exports.$doRefresh(cfg, userCtx)
         );
+        $('#projects-add-btn', el).click(function (ev) {
+            ev.preventDefault();
+            exports.$showTemplateModal();
+            return false;
+        });
         return el;
     };
 
@@ -19839,13 +20005,7 @@ define('text!templates/templates.handlebars',[],function () { return '<div id="m
 
 define('text!templates/templates-list.handlebars',[],function () { return '<table class="table table-striped table-templates">\n  <thead>\n    <tr>\n      <th>Name</th>\n      <th>Source</th>\n      <th>Installed</th>\n      <th>Available</th>\n      <th class="actions">Actions</th>\n    </tr>\n  </thead>\n  <tbody>\n  </tbody>\n</table>\n';});
 
-define('text!templates/templates-row.handlebars',[],function () { return '<tr data-source="{{doc.source}}"\n    data-ddoc-id="{{doc.ddoc_id}}"\n    {{#if upgradable}}class="upgradable"{{/if}}>\n\n  <td>\n    <div class="name">\n      {{#if doc.dashicon}}\n        <img class="icon" alt="Icon" src="{{doc.dashicon}}" />\n      {{else}}\n        <img class="icon" alt="Icon" src="img/icons/default_22.png" />\n      {{/if}}\n      {{doc.ddoc_id}}\n    </div>\n  </td>\n\n  <td class="source" style="color: #999">\n    {{doc.source}}\n  </td>\n\n  <td class="installed">\n    {{#if doc.installed.dashboard.version}}\n      {{doc.installed.dashboard.version}}\n    {{else}}\n      --\n    {{/if}}\n  </td>\n\n  <td class="available">\n    {{doc.remote.dashboard.version}}\n  </td>\n\n  <td class="actions">\n    {{#if doc.installed}}\n      <a class="btn template-uninstall-btn">\n        <i class="icon-trash"></i> Uninstall\n      </a>\n      {{#if upgradable}}\n        <a class="btn template-upgrade-btn">\n          <i class="icon-circle-arrow-up"></i> Upgrade\n        </a>\n      {{/if}}\n      <!--\n      <a class="btn template-create-btn">\n        <i class="icon-briefcase"></i> Create Project\n      </a>\n      -->\n    {{else}}\n      <a class="btn template-install-btn">\n        <i class="icon-download"></i> Install\n      </a>\n    {{/if}}\n  </td>\n\n</tr>\n';});
-
-define('text!templates/templates-create-project-modal.handlebars',[],function () { return '<div class="modal hide" id="create-project-modal">\n  <div class="modal-header">\n    <button type="button" class="close" data-dismiss="modal">×</button>\n    <h3>Create project</h3>\n  </div>\n  <div class="modal-body">\n    <form id="create-project-form" class="form-horizontal">\n      <fieldset>\n        <div class="control-group">\n          <label class="control-label" for="input-project-template">Template</label>\n          <div class="controls">\n            <span class="template">{{{template_td}}}</span>\n          </div>\n        </div>\n        <div class="control-group">\n          <label class="control-label" for="input-project-name">Name</label>\n          <div class="controls">\n            <input type="text" class="input-xlarge" id="input-project-name"\n                   value="{{db_name}}">\n          </div>\n        </div>\n      </fieldset>\n    </form>\n  </div>\n  <div class="modal-footer">\n    <a href="#" class="btn" data-dismiss="modal">Close</a>\n    <a href="#" class="btn btn-primary">Create</a>\n  </div>\n</div>\n';});
-
-define('text!templates/templates-project-progress-modal.handlebars',[],function () { return '<div class="modal hide" id="create-project-modal">\n  <div class="modal-header">\n    <button type="button" class="close" data-dismiss="modal">×</button>\n    <h3>Creating project...</h3>\n  </div>\n  <div class="modal-body">\n    <div class="progress">\n      <div class="bar"></div>\n    </div>\n  </div>\n  <div class="modal-footer">\n    <a href="#" class="btn" data-dismiss="modal">Close</a>\n    <a href="#" class="btn btn-primary disabled">loading</a>\n  </div>\n</div>\n';});
-
-define('text!templates/templates-done-project-modal.handlebars',[],function () { return '<div class="modal hide" id="done-project-modal">\n  <div class="modal-header">\n    <button type="button" class="close" data-dismiss="modal">×</button>\n    <h3>Done!</h3>\n  </div>\n  <div class="modal-body">\n    <a class="project-url" href="{{url}}">{{url}}</a>\n  </div>\n  <div class="modal-footer">\n    <a href="#" class="btn" data-dismiss="modal">Close</a>\n    <a href="{{url}}" class="btn btn-primary">Open</a>\n  </div>\n</div>\n';});
+define('text!templates/templates-row.handlebars',[],function () { return '<tr data-source="{{doc.source}}"\n    data-ddoc-id="{{doc.ddoc_id}}"\n    {{#if upgradable}}class="upgradable"{{/if}}>\n\n  <td class="name">\n    {{#if doc.dashicon}}\n      <img class="icon" alt="Icon" src="{{doc.dashicon}}" />\n    {{else}}\n      <img class="icon" alt="Icon" src="img/icons/default_22.png" />\n    {{/if}}\n    {{doc.ddoc_id}}\n  </td>\n\n  <td class="source" style="color: #999">\n    {{doc.source}}\n  </td>\n\n  <td class="installed">\n    {{#if doc.installed.dashboard.version}}\n      {{doc.installed.dashboard.version}}\n    {{else}}\n      --\n    {{/if}}\n  </td>\n\n  <td class="available">\n    {{doc.remote.dashboard.version}}\n  </td>\n\n  <td class="actions">\n    {{#if doc.installed}}\n      <a class="btn template-uninstall-btn">\n        <i class="icon-trash"></i> Uninstall\n      </a>\n      {{#if upgradable}}\n        <a class="btn template-upgrade-btn">\n          <i class="icon-circle-arrow-up"></i> Upgrade\n        </a>\n      {{/if}}\n      <!--\n      <a class="btn template-create-btn">\n        <i class="icon-briefcase"></i> Create Project\n      </a>\n      -->\n    {{else}}\n      <a class="btn template-install-btn">\n        <i class="icon-download"></i> Install\n      </a>\n    {{/if}}\n  </td>\n\n</tr>\n';});
 
 define('lib/views/templates',[
     'exports',
@@ -19858,10 +20018,7 @@ define('lib/views/templates',[
     '../remote/projects',
     'hbt!../../templates/templates',
     'hbt!../../templates/templates-list',
-    'hbt!../../templates/templates-row',
-    'hbt!../../templates/templates-create-project-modal',
-    'hbt!../../templates/templates-project-progress-modal',
-    'hbt!../../templates/templates-done-project-modal'
+    'hbt!../../templates/templates-row'
 ],
 function (exports, require, $, _) {
 
@@ -19876,65 +20033,6 @@ function (exports, require, $, _) {
         var el = $(tmpl({}));
         $('#templates-refresh-btn', el).click( exports.$doRefresh );
         return el;
-    };
-
-    exports.$showDoneModal = function (url) {
-        var tmpl = require('hbt!../../templates/templates-done-project-modal');
-        var m = vutils.$showModal(tmpl({ url: url }));
-        // so if you press enter you go to desired url
-        $('.btn-primary', m).focus();
-    };
-
-    exports.$showProgressModal = function () {
-        var tmpl = require(
-            'hbt!../../templates/templates-project-progress-modal'
-        );
-        vutils.$showModal(tmpl({}));
-    };
-
-    exports.$submitCreateProject = function (ddoc_id) {
-        return function (ev) {
-            ev.preventDefault();
-            var name = $('#input-project-name', m).val();
-            var m = exports.$showProgressModal();
-
-            var bar = $('.progress .bar', m);
-            var creator = projects.$create(name, ddoc_id, function (err, doc) {
-                if (err) {
-                    exports.$showProjectModal(ddoc_id, name);
-                    vutils.showError($('.modal-body', m), err);
-                    return;
-                }
-                var fn = function () {
-                    exports.$showDoneModal(doc.url);
-                };
-                bar.one('transitionEnd', fn);
-                bar.one('oTransitionEnd', fn);       // opera
-                bar.one('msTransitionEnd', fn);      // ie
-                bar.one('transitionend', fn);        // mozilla
-                bar.one('webkitTransitionEnd', fn);  // webkit
-            });
-            creator.on('progress', function (value) {
-                bar.css({width: value + '%'});
-            });
-            return false;
-        };
-    };
-
-    exports.$showProjectModal = function (ddoc_id, db_name) {
-        var tmpl = require(
-            'hbt!../../templates/templates-create-project-modal'
-        );
-        var html = tmpl({
-            ddoc_id: ddoc_id,
-            db_name: db_name || '',
-            template_td: $('tr[data-ddoc-id=' + ddoc_id + '] .name').html()
-        });
-        var m = vutils.$showModal(html);
-
-        $('#input-project-name', m).focus();
-        $('.btn-primary', m).click( exports.$submitCreateProject(ddoc_id) );
-        $('form', m).submit( exports.$submitCreateProject(ddoc_id) );
     };
 
     exports.$doInstallTemplate = function (tr, doc) {
@@ -20007,7 +20105,7 @@ function (exports, require, $, _) {
         );
         $('.template-create-btn', tr).click(function (ev) {
             ev.preventDefault();
-            exports.$showProjectModal(doc.ddoc_id);
+            // TODO
             return false;
         });
         return tr;

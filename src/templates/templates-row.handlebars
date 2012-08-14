@@ -2,15 +2,13 @@
     data-ddoc-id="{{doc.ddoc_id}}"
     {{#if upgradable}}class="upgradable"{{/if}}>
 
-  <td>
-    <div class="name">
-      {{#if doc.dashicon}}
-        <img class="icon" alt="Icon" src="{{doc.dashicon}}" />
-      {{else}}
-        <img class="icon" alt="Icon" src="img/icons/default_22.png" />
-      {{/if}}
-      {{doc.ddoc_id}}
-    </div>
+  <td class="name">
+    {{#if doc.dashicon}}
+      <img class="icon" alt="Icon" src="{{doc.dashicon}}" />
+    {{else}}
+      <img class="icon" alt="Icon" src="img/icons/default_22.png" />
+    {{/if}}
+    {{doc.ddoc_id}}
   </td>
 
   <td class="source" style="color: #999">

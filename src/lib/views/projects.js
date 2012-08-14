@@ -3,23 +3,31 @@ define([
     'require',
     'jquery',
     'lodash',
+    'couchr',
     './utils',
     '../remote/projects',
     '../remote/settings',
     '../remote/session',
     '../collections/projects',
+    '../collections/templates',
     'hbt!../../templates/projects',
     'hbt!../../templates/projects-row',
-    'hbt!../../templates/projects-delete-modal'
+    'hbt!../../templates/projects-delete-modal',
+    'hbt!../../templates/projects-template-modal',
+    'hbt!../../templates/projects-template-modal-list',
+    'hbt!../../templates/projects-create-modal',
+    'hbt!../../templates/projects-progress-modal',
+    'hbt!../../templates/projects-done-modal'
 ],
 function (exports, require, $, _) {
 
-    var tmpl = require('hbt!../../templates/projects'),
-        projects = require('../remote/projects'),
+    var projects = require('../remote/projects'),
         settings = require('../remote/settings'),
         session = require('../remote/session'),
+        t_collection = require('../collections/templates'),
         p_collection = require('../collections/projects'),
-        vutils = require('./utils');
+        vutils = require('./utils'),
+        couchr = require('couchr');
 
 
     exports.filterProjects = function (cfg, userCtx, ps) {
@@ -35,6 +43,113 @@ function (exports, require, $, _) {
         return r;
     };
 
+    exports.$showDoneModal = function (url) {
+        var tmpl = require('hbt!../../templates/projects-done-modal');
+        var m = vutils.$showModal(tmpl({ url: url }));
+        // so if you press enter you go to desired url
+        $('.btn-primary', m).focus();
+    };
+
+    exports.$showProgressModal = function () {
+        var tmpl = require(
+            'hbt!../../templates/projects-progress-modal'
+        );
+        vutils.$showModal(tmpl({}));
+    };
+
+    exports.$submitCreateProject = function (t) {
+        return function (ev) {
+            ev.preventDefault();
+            var name = $('#input-project-name', m).val();
+            var m = exports.$showProgressModal();
+
+            var bar = $('.progress .bar', m);
+            var creator = projects.$create(
+                name, t.ddoc_id, function (err, doc) {
+                    if (err) {
+                        exports.$showCreateModal(t, name);
+                        vutils.showError($('.modal-body', m), err);
+                        return;
+                    }
+                    var fn = function () {
+                        session.$infoCached(function (err, info) {
+                            var cfg = settings.$get().projects;
+                            var ps = projects.$get();
+
+                            // redraw projects list
+                            $('#content').html(
+                                exports.render(cfg, info.userCtx, ps)
+                            );
+
+                            exports.$showDoneModal(doc.url);
+                        });
+                    };
+                    bar.one('transitionEnd', fn);
+                    bar.one('oTransitionEnd', fn);       // opera
+                    bar.one('msTransitionEnd', fn);      // ie
+                    bar.one('transitionend', fn);        // mozilla
+                    bar.one('webkitTransitionEnd', fn);  // webkit
+                }
+            );
+            creator.on('progress', function (value) {
+                bar.css({width: value + '%'});
+            });
+            return false;
+        };
+    };
+
+    exports.$showCreateModal = function (t, db_name) {
+        var tmpl = require(
+            'hbt!../../templates/projects-create-modal'
+        );
+        var html = tmpl({
+            db_name: db_name || '',
+            template: t
+        });
+        var m = vutils.$showModal(html);
+
+        $('#input-project-name', m).focus();
+        $('.btn-primary', m).click( exports.$submitCreateProject(t) );
+        $('form', m).submit( exports.$submitCreateProject(t) );
+    };
+
+    exports.$showTemplateModal = function () {
+        var el = $(require('hbt!../../templates/projects-template-modal')({}));
+        vutils.$showModal(el);
+
+        // fetch template list from couchdb
+        var vurl = 'api/_design/dashboard/_view/templates';
+        couchr.get(vurl, {include_docs: true}, function (err, data) {
+            if (err) {
+                // TODO: show error message to user
+                return console.error(err);
+            }
+            var ts = _.map(data.rows, function (r) {
+                return {
+                    ddoc_id: r.doc.ddoc_id,
+                    icon: t_collection.getIcon(r.doc, 96),
+                    dashicon: t_collection.getDashIcon(r.doc)
+                };
+            });
+            var ul = $(
+                require('hbt!../../templates/projects-template-modal-list')({
+                    templates: ts
+                })
+            );
+            $('li', ul).click(function (ev) {
+                ev.preventDefault();
+                var ddoc_id = $(this).attr('rel');
+                var tmpl = _.detect(ts, function (t) {
+                    return t.ddoc_id === ddoc_id;
+                });
+                exports.$showCreateModal(tmpl);
+                return false;
+            });
+            $('.modal-body', el).html(ul);
+        });
+
+        return el;
+    };
 
     exports.$showDeleteModal = function (p, tr) {
         var el = $(require('hbt!../../templates/projects-delete-modal')({}));
@@ -94,7 +209,7 @@ function (exports, require, $, _) {
 
     exports.render = function (cfg, userCtx, ps) {
         ps = exports.filterProjects(cfg, userCtx, ps);
-        var el = $(tmpl({}));
+        var el = $(require('hbt!../../templates/projects')({}));
         _.each(ps, function (p) {
             $('tbody', el).append( exports.renderRow(userCtx, p) );
         });
@@ -102,6 +217,11 @@ function (exports, require, $, _) {
         $('#projects-refresh-btn', el).click(
             exports.$doRefresh(cfg, userCtx)
         );
+        $('#projects-add-btn', el).click(function (ev) {
+            ev.preventDefault();
+            exports.$showTemplateModal();
+            return false;
+        });
         return el;
     };
 

@@ -7832,3 +7832,23 @@ body {
 .table-projects td.select {
   width: 26px;
 }
+/*
+.table-projects td.name {
+    width: 66%;
+}
+*/
+.iconlist {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+}
+.iconlist li {
+  display: inline-block;
+  width: 122px;
+  height: 142px;
+  text-align: center;
+  cursor: pointer;
+}
+.iconlist li .name {
+  margin-top: 2px;
+}
